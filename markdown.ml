@@ -4,6 +4,7 @@ open Base
 type atom =
   | Link of { name : string ; url : string }
   | RefLink of { name : string ; id : string }
+  | List of atom list
   | Raw of string
   | Table
   | Code
@@ -13,10 +14,6 @@ type paragraph =
   | FlatParagraph of { level : int; header : atom list ; content : atom list }
   | Paragraph of { level : int; header : atom list ; content : paragraph list }
 
-let header_line = repeat (charP '-') |-| repeat (charP '=') <<- section 0
-
-let pre_post_header = repeat (charP '#') |> map List.length 
-                
 let surounded_string l r =
   (* work around *)
   let rec iter a =
@@ -24,39 +21,40 @@ let surounded_string l r =
   in 
   l <<- iter None |> map String.of_char_list
     
-let ref_link =
-  sequence [ surounded_string (spaces <<- charP '[') (charP ']') ;
-             surounded_string (spaces <<- charP '[') (charP ']' ->> spaces) ]
-  |> map (function [n; u] -> RefLink { name=n ; id=u } | _ -> failwith "err:ref_link")
-    
-let url_link =
-  sequence [ surounded_string (spaces <<- charP '[') (charP ']') ;
-             surounded_string (spaces <<- charP '(') (charP ')' ->> spaces) ]
-  |> map (function [n; u] -> Link { name=n ; url=u } | _ -> failwith "err:url_link")
-
-let link = ref_link |-| url_link
-         
-let raw_of_any = map (fun c -> Raw (String.of_char c)) any 
-               
-let rec collect_raws =
-  function
-  | [] -> []
-  | Raw x1 :: Raw x2 :: xs ->
-     Raw (x1 ^ x2) :: collect_raws xs
-  | x :: xs -> 
-     x :: collect_raws xs
+let link =
+  let ref_link =
+    sequence [ surounded_string (spaces <<- charP '[') (charP ']') ;
+               surounded_string (spaces <<- charP '[') (charP ']' ->> spaces) ]
+    |> map (function [n; u] -> RefLink { name=n ; id=u } | _ -> failwith "err:ref_link")
+  in
+  let url_link =
+    sequence [ surounded_string (spaces <<- charP '[') (charP ']') ;
+               surounded_string (spaces <<- charP '(') (charP ')' ->> spaces) ]
+    |> map (function [n; u] -> Link { name=n ; url=u } | _ -> failwith "err:url_link")
+  in ref_link |-| url_link
     
 let end_of_atom = eof <<- section [] |-| sequence [ charP '\n' ; tryP (charP '#') ] <<- section []
-                
 let end_of_atom' = eof <<- section ' ' |-| charP '\n' <<- section []
                 
-let rec fix_atom terminator =
-  orP terminator 
-    (lazy (consP (link |-| raw_of_any) (fix_atom terminator)))
-
-let atoms terminator = fix_atom terminator |> map collect_raws 
+let atoms terminator = 
+  let raw_of_any = map (fun c -> Raw (String.of_char c)) any in
+  let rec collect_raws =
+    function
+    | [] -> []
+    | Raw x1 :: Raw x2 :: xs ->
+       Raw (x1 ^ x2) :: collect_raws xs
+    | x :: xs -> 
+       x :: collect_raws xs
+  in
+  (* work around *)
+  let rec iter a =
+    orP terminator 
+      (lazy (consP (link |-| raw_of_any) (iter a)))
+  in iter None |> map collect_raws 
 
 let app_header (p : 'a list parser) =
+  let header_line = repeat (charP '-') |-| repeat (charP '=') <<- section 0 in
+  let pre_post_header = repeat (charP '#') |> map List.length in
   let header =
     app (map (fun x y z -> x, y, z) pre_post_header) (atoms end_of_atom')
     ->> pre_post_header ->> spaces ->> charP '\n' |-|
