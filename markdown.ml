@@ -33,9 +33,6 @@ let link =
     |> map (function [n; u] -> Link { name=n ; url=u } | _ -> failwith "err:url_link")
   in ref_link |-| url_link
     
-let end_of_atom = eof <<- section [] |-| sequence [ charP '\n' ; tryP (charP '#') ] <<- section []
-let end_of_atom' = eof <<- section ' ' |-| charP '\n' <<- section []
-                
 let atoms terminator = 
   let raw_of_any = map (fun c -> Raw (String.of_char c)) any in
   let rec collect_raws =
@@ -53,25 +50,27 @@ let atoms terminator =
   in iter None |> map collect_raws 
 
 let app_header (p : 'a list parser) =
+  let end_of_atom = eof <<- section ' ' |-| charP '\n' <<- section [] in
   let header_line = repeat (charP '-') |-| repeat (charP '=') <<- section 0 in
   let pre_post_header = repeat (charP '#') |> map List.length in
   let header =
-    app (map (fun x y z -> x, y, z) pre_post_header) (atoms end_of_atom')
-    ->> pre_post_header ->> spaces ->> charP '\n' |-|
-      app (map (fun x y z -> x, y, z) header_line) (atoms end_of_atom')
-      ->> spaces ->> charP '\n'
+    app (map (fun x y z -> x, y, z) pre_post_header) (atoms end_of_atom)
+    ->> pre_post_header ->> spaces ->> charP '\n'
+    |-| app (map (fun x y z -> x, y, z) header_line) (atoms end_of_atom)
+        ->> spaces ->> charP '\n'
   in app header p
   
 let paragraph = 
+  let end_of_atom = eof <<- section [] |-| sequence [ charP '\n' ; tryP (charP '#') ] <<- section [] in
   let flat_paragraph : paragraph parser =
     app_header (atoms end_of_atom)
     |> map (fun (x, y, z) -> FlatParagraph { level=x ; header=y ; content=z })
   in
   (* work around *)
-  let rec paragraph a =
+  let rec iter a =
     orP flat_paragraph
-      (lazy (app_header (repeat (paragraph a)) |> (map (fun (x, y, z) -> Paragraph { level=x ; header=y ; content=z }))))
-  in paragraph None 
+      (lazy (app_header (repeat (iter a)) |> (map (fun (x, y, z) -> Paragraph { level=x ; header=y ; content=z }))))
+  in iter None 
   
 let string_of_atom =
   function 
