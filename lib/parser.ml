@@ -8,7 +8,7 @@ type 'a parser = Parser of (ty -> ('a, fail) Either.t * ty)
                          
 let section x = Parser (fun y -> Either.First x, y)
 
-let map f =
+let map ~f =
   function Parser p ->
     Parser
       begin fun x ->
@@ -26,10 +26,10 @@ let join : 'a parser parser -> 'a parser =
       | Second f -> Either.Second f, _2
       end
            
-let bind f p = join (map f p)
+let bind ~f p = join (map ~f:f p)
              
-let app (p : 'a parser) (fp : ('a -> 'b) parser) : 'b parser =
-  bind (fun f -> map f p) fp
+let app (p : 'a parser) ~(f : ('a -> 'b) parser) : 'b parser =
+  bind ~f:(fun f -> map ~f:f p) f
     
 let orP =
   function Parser p1 ->
@@ -67,9 +67,9 @@ let repeat =
     in Parser (iter [])
 
 let chainL1 (p : 'a parser) (op : ('a -> 'a -> 'a) parser) =
-  let op' = repeat (app p op)
-            |> map (List.fold_right ~init:id ~f:compose) in
-  app p op'
+  let op' = repeat (app p ~f:op)
+            |> map ~f:(List.fold_right ~init:id ~f:compose) in
+  app p ~f:op'
 
 let satisfy p =   
   Parser
@@ -91,9 +91,9 @@ let spaces = charP ' ' |> repeat
 let oneOf str = satisfy (String.contains str)
 let digit = oneOf "0123456789"
 let consP p ps =
-  app ps (map (fun x y -> x :: y) p)
+  app ps ~f:(map ~f:(fun x y -> x :: y) p)
 let repeat1 p = consP p (repeat p)
-let digits = repeat1 digit |> map String.of_char_list
+let digits = repeat1 digit |> map ~f:String.of_char_list
            
 let sequence ps =
   let rec iter = 
@@ -107,13 +107,13 @@ let stringP str =
   String.to_list str
   |> List.map ~f:charP 
   |> sequence
-  |> map String.of_char_list
+  |> map ~f:String.of_char_list
 
 let (->>) p1 p2 =                  
-  app p2 (map (fun x _ -> x) p1)
+  app p2 ~f:(map ~f:(fun x _ -> x) p1)
   
 let (<<-) p1 p2 =                  
-  app p2 (map (fun _ y -> y) p1)
+  app p2 ~f:(map ~f:(fun _ y -> y) p1)
   
 let (|-|) p1 p2 = orP p1 (lazy p2)
 
