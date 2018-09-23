@@ -1,13 +1,31 @@
 module M = Markdown
-open Parser
+module P = Parser 
+open Base
    
 let test_link1 = "[an example][id]"
-let test_link2 = "This is [an example] [id] reference-style link."
-    
-let res, rest = run M.link test_link1
-let () =
-  match res with
+let test_atom1 = "This is [an example] [id] reference-style link."
+let test_atom2 = "This is the content."
+let test_paragraph1 = "## This is a header.\nThis is the content."
+let testdata = [ test_link1 ; test_atom1 ; test_paragraph1 ]
+
+let do_test_par data =
+  let res, rest = P.run M.paragraph data in
+  begin match res with
   | First r ->
-     M.string_of_atom r
-     |> Stdio.print_endline
-  | _ -> ()
+     M.string_of_paragraph r
+     |> ((^) "Success: ")
+  | _ -> "Fail: " ^ rest
+  end |> Stdio.print_endline
+           
+let do_test_atom data =
+  let res, rest = P.run M.atoms data in
+  begin match res with
+  | First r ->
+     List.map ~f:M.string_of_atom r
+     |> List.fold_left ~init:"Success: " ~f:(^)
+  | _ -> "Fail: " ^ rest
+  end |> Stdio.print_endline
+
+let () = do_test_par test_paragraph1
+let () = do_test_atom test_atom2
+let () = do_test_par test_atom2

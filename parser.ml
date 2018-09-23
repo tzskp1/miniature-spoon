@@ -28,7 +28,7 @@ let join : 'a parser parser -> 'a parser =
            
 let bind f p = join (map f p)
              
-let app (fp : ('a -> 'b) parser) (p : 'a parser) : 'b parser =
+let app (p : 'a parser) (fp : ('a -> 'b) parser) : 'b parser =
   bind (fun f -> map f p) fp
     
 let orP =
@@ -42,11 +42,11 @@ let orP =
            let lazy (Parser p2) = p2L in p2 x
         end
 
-let tryP = function Parser p ->
+let tryP d = function Parser p ->
              Parser
                begin fun src ->
                match p src with
-               | Second f, _ -> Second f, src
+               | Second _, _ -> First d, src
                | orig -> orig
                end
 
@@ -59,9 +59,9 @@ let repeat =
     in Parser (iter [])
 
 let chainL1 (p : 'a parser) (op : ('a -> 'a -> 'a) parser) =
-  let op' = repeat (app op p)
+  let op' = repeat (app p op)
             |> map (List.fold_right ~init:id ~f:compose) in
-  app op' p
+  app p op'
 
 let satisfy p =   
   Parser
@@ -83,7 +83,7 @@ let spaces = charP ' ' |> repeat
 let oneOf str = satisfy (String.contains str)
               
 let consP p ps =
-  app (map (fun x y -> x :: y) p) ps
+  app ps (map (fun x y -> x :: y) p)
            
 let sequence ps =
   let rec iter = 
@@ -100,10 +100,10 @@ let stringP str =
   |> map String.of_char_list
 
 let (->>) p1 p2 =                  
-  app (map (fun x _ -> x) p1) p2
+  app p2 (map (fun x _ -> x) p1)
   
 let (<<-) p1 p2 =                  
-  app (map (fun _ y -> y) p1) p2
+  app p2 (map (fun _ y -> y) p1)
   
 let (|-|) p1 p2 = orP p1 (lazy p2)
 
@@ -112,4 +112,3 @@ let run =
     fun src ->
     let res, rest = String.to_list src |> p in
     res, String.of_char_list rest
-
