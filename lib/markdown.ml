@@ -1,5 +1,6 @@
 open Parser
-open Base
+open Core
+module TMap = Map.Make(Int)
    
 type code_type =
   | Shell
@@ -13,9 +14,9 @@ type atom =
   | RefLink of { name : string ; id : string }
   | List of list_type * atom list list
   | Raw of string
-  | HorizontalRule
-  | Table
+  | Table of string list TMap.t 
   | Code of code_type option * string
+  | HorizontalRule
   | Latex
   
 type paragraph =
@@ -31,8 +32,8 @@ let surounded_string l r =
     
 let link : atom parser =
   let ref_link =
-    app ~f:(map ~f:(fun x y -> x, y) (surounded_string (spaces <<- charP '[') (charP ']')))
-      (surounded_string (spaces <<- charP '[') (charP ']' ->> spaces))
+    app (surounded_string (spaces <<- charP '[') (charP ']' ->> spaces))
+      ~f:(map ~f:(fun x y -> x, y) (surounded_string (spaces <<- charP '[') (charP ']')))
     |> map ~f:(fun (n, u) -> RefLink { name=n ; id=u })
   in
   let url_link =
@@ -53,6 +54,24 @@ let line eof : atom list parser =
     let rec iter _ = 
       orP (repeat1 empty_line) (lazy (consP any (iter None)))
     in tab <<- (repeat (iter None) |> map ~f:List.join |> map ~f:String.of_char_list |> map ~f:(fun x -> [Code (None,x)])) in
+  
+  let table =
+    let t_col = spaces <<- charP '|' ->> spaces in
+    let table_line_col =
+      t_col <<- map ~f:String.of_char_list (until (spaces <<- charP '|' |-| charP '\n')) in
+    let table_line = repeat table_line_col ->> spaces ->> charP '\n' in
+    let check_table = repeat1 (t_col <<- repeat1 (charP '-')) ->> t_col ->> charP '\n' in
+    let zip_with_num xs =
+      let num = List.length xs in List.zip_exn xs (List.range 0 num)
+    in
+    let label = map table_line ~f:(fun x -> TMap.add_exn TMap.empty ~key:0 ~data:x) ->> check_table
+    in app (repeat table_line)
+         ~f:(map label
+               ~f:(fun x xs -> List.fold_left (zip_with_num xs) ~init:x
+                                 ~f:(fun b (a,n) -> TMap.add_exn b ~key:(n + 1) ~data:a)))
+       |> map ~f:(fun x -> [Table x])
+  in
+  
   let rec collect =
     function
     | [] -> []
@@ -69,12 +88,13 @@ let line eof : atom list parser =
     | x :: xs -> 
        x :: collect xs
   in
-  (* work around *)
+  (* character wise operation which associate with list/link parsing *)
   let rec iter _ : atom list parser =
+  (* work around *)
     orP terminator 
       (lazy (consP (link |-| raw_of_any) (iter None)))
   in
-  code |-| app (iter None) ~f:bullet |-| iter None |> map ~f:collect
+  table |-| code |-| app (iter None) ~f:bullet |-| iter None |> map ~f:collect
           
 let paragraph : paragraph parser =
   let line_n = line (repeat (charP '#') <<- spaces <<- (charP '\n') ->> spaces) in
@@ -101,8 +121,12 @@ let rec string_of_atom =
      "RefLink " ^ name ^ ":" ^ id 
   | Raw s -> s 
   | List (_, ss) -> 
-     List.bind ~f:(fun x -> "List: " :: List.map ~f:string_of_atom x) ss
-     |> List.fold_left ~init:"" ~f:(fun a b -> a ^ b)
+     List.bind ~f:(fun x -> "List:" :: List.map ~f:string_of_atom x) ss
+     |> List.fold_left ~init:"" ~f:(^)
+  | Code (_, s) -> "Code:" ^ s
+  | Table tbl ->
+     "Table:" ^ 
+     List.fold_left (TMap.to_alist tbl) ~init:"" ~f:(fun l (k,d) -> l ^ (Int.to_string k) ^ (List.fold_left ~init:"" ~f:(^) d) ^ "\n")
   | _ -> failwith "error: string_of_atom"
        
 let rec string_of_paragraph =

@@ -11,6 +11,8 @@ let test_paragraph1 = "## This is a header.\n This is a content.\n \n"
 let test_paragraph2 = "## This is a header.\n ### This is a sub header. ### \n nth23 \n"
 let test_paragraph2' = "## This is a header.\n ### ### This is a sub header. ### \n nth23 \n"
 let test_paragraph3 = "### This is a sub header. ### \n nth23 \n"
+let test_code1 = "    echo 'hello'\n"
+let test_table1 = "| Plugins | Plugin | README | \n | ------ | ------ | - | \n | Dropbox | [plugins/dropbox/README.md] | \n"
 
 let do_test data =
   let res, rest = P.run M.paragraph data in
@@ -28,3 +30,5 @@ let () = do_test test_list1
 let () = do_test test_paragraph2
 let () = do_test test_paragraph2'
 let () = do_test test_paragraph3
+let () = do_test test_code1
+let () = do_test test_table1

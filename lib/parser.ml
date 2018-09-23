@@ -46,9 +46,17 @@ let tryP = function Parser p ->
              Parser
                begin fun src ->
                match p src with
-               | Second _, x :: _ -> First x, src
+               | Second f, _ -> Second f, src
                | orig -> orig
                end
+                    
+let checkP = function Parser p ->
+               Parser
+                 begin fun src ->
+                 match p src with
+                 | Second f, _ -> Second f, src
+                 | f, _ -> f, src
+                 end
 
 let failP = function Parser p ->
               Parser
@@ -122,3 +130,7 @@ let run =
     fun src ->
     let res, rest = String.to_list src |> p in
     res, String.of_char_list rest
+    
+let rec until p =
+  let p' = checkP p <<- section [] in
+  orP p' (lazy (consP any (until p)))
