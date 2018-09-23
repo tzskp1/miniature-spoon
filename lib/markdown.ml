@@ -2,6 +2,7 @@ open Parser
 open Core
 module TMap = Map.Make(Int)
    
+(* TODO: escaping *)
 type code_type =
   | Shell
   
@@ -10,18 +11,21 @@ type list_type =
   | Ol
   
 type atom =
+  | AutoLink of string (* TODO *)
+  | ImageLink of { name : string ; url : string ; title : string option } (* TODO *)
   | Link of { name : string ; url : string }
   | RefLink of { name : string ; id : string }
   | List of list_type * atom list list
   | Raw of string
   | Table of string list TMap.t 
   | Code of code_type option * string
-  | HorizontalRule
-  | Latex
+  | HorizontalRule (* TODO *)
+  | Latex (* TODO *)
   
 type paragraph =
   | Paragraph of { level : int; header : atom list ; content : paragraph list }
   | PrimParagraph of atom list
+  | BlockQuote of paragraph (* TODO *)
 
 let surounded_string l r =
   (* work around *)
@@ -88,7 +92,7 @@ let line eof : atom list parser =
     | x :: xs -> 
        x :: collect xs
   in
-  (* character wise operation which associate with list/link parsing *)
+  (* character wise parsing which associate with list/link parsing *)
   let rec iter _ : atom list parser =
   (* work around *)
     orP terminator 
@@ -138,3 +142,5 @@ let rec string_of_paragraph =
   | PrimParagraph content ->
      "PrimParagraph" ^ ":" ^
        List.fold_left ~init:"" ~f:(fun x y -> string_of_atom y ^ x) content ^ "\n"
+  | BlockQuote paragraph ->
+     "BlockQuote:" ^ string_of_paragraph paragraph
