@@ -50,6 +50,14 @@ let tryP d = function Parser p ->
                | orig -> orig
                end
 
+let failP = function Parser p ->
+             Parser
+               begin fun src ->
+               match p src with
+               | First _, src' -> Second Fail, src'
+               | orig -> orig
+               end
+
 let repeat =
   function Parser p ->
     let rec iter acc x =

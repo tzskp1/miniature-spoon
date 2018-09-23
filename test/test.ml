@@ -7,7 +7,7 @@ let test_atom1 = "This is [an example] [id] reference-style link.\n"
 let test_atom2 = "This is a content.\n"
 let test_list1 = "1. one \n 2. two \n"
 let test_paragraph1 = "## This is a header.\n This is a content.\n"
-let testdata = [ test_link1 ; test_atom1 ; test_paragraph1 ]
+let test_paragraph2 = "## This is a header.\n ### This is a sub header.\n"
 
 let do_test_par data =
   let res, rest = P.run M.paragraph data in
@@ -31,3 +31,4 @@ let () = do_test_par test_paragraph1
 let () = do_test_atom test_atom2
 let () = do_test_par test_atom2
 let () = do_test_par test_list1
+let () = do_test_par test_paragraph2

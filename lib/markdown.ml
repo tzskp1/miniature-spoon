@@ -1,15 +1,21 @@
 open Parser
 open Base
    
+type code_type =
+  | Shell
+  
+type list_type =
+  | Uo
+  | Ol
+  
 type atom =
   | Link of { name : string ; url : string }
   | RefLink of { name : string ; id : string }
-  | List of atom list list
+  | List of list_type * atom list list
   | Raw of string
-  | EmptyLine
   | HorizontalRule
   | Table
-  | Code
+  | Code of code_type option * string
   | Latex
   
 type paragraph =
@@ -41,18 +47,23 @@ let line : atom list parser =
   (* Assume that the end of document is a '\n'. *)
   let terminator = (* eof <<- section ' ' |-|  *) charP '\n' <<- section [] in
   let raw_of_any = map (fun c -> Raw (String.of_char c)) any in
-  let bullet = oneOf "*-+" <<- section [] |-| sequence [ digits ; stringP "." ] <<- charP ' ' in
+  let bullet = spaces <<- (oneOf "*-+" <<- section Uo |-| (sequence [ digits ; stringP "." ] <<- section Ol)) ->> charP ' ' 
+             |> map (fun t x -> [List (t,[x])]) in
+  let empty_line = spaces <<- charP '\n' in
+  let rec code _ = orP (repeat1 empty_line) (lazy (consP any (code None))) in
   let rec collect =
     function
     | [] -> []
     | Raw x1 :: Raw x2 :: xs ->
        Raw (x1 ^ x2) :: xs
        |> collect
-    | List x1 :: List x2 :: xs ->
-       List (List.append
-               (List.map ~f:collect x1)
-               (List.map ~f:collect x2)) :: xs
+    | List (t1,x1) :: List (t2,x2) :: xs when phys_equal t1 t2 ->
+       List (t1,(List.append
+                   (List.map ~f:collect x1)
+                   (List.map ~f:collect x2))) :: xs
        |> collect
+    | List (t,x) :: xs ->
+       List (t,(List.map ~f:collect x)) :: collect xs
     | x :: xs -> 
        x :: collect xs
   in
@@ -61,8 +72,8 @@ let line : atom list parser =
     orP terminator 
       (lazy (consP (link |-| raw_of_any) (iter None)))
   in
-  spaces <<- charP '\n' <<- section [EmptyLine] |-|
-  map (fun x -> [List [x]]) (spaces <<- bullet <<- spaces <<- (iter None)) |-|
+  tab <<- (repeat (code None) |> map List.join |> map String.of_char_list |> map (fun x -> [Code (None,x)])) |-|
+  app (iter None) bullet |-|
   iter None |> map collect
   
 let lines = line |> repeat |> map List.join
@@ -97,10 +108,9 @@ let rec string_of_atom =
   | RefLink { name; id } ->
      "RefLink " ^ name ^ ":" ^ id 
   | Raw s -> s 
-  | List ss -> 
+  | List (_,ss) -> 
      List.bind ~f:(fun x -> "List: " :: List.map ~f:string_of_atom x) ss
      |> List.fold_left ~init:"" ~f:(fun a b -> a ^ b)
-  | EmptyLine -> "EmptyLine"
   | _ -> failwith "error: string_of_atom"
        
 let rec string_of_paragraph =
