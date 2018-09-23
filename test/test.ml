@@ -1,5 +1,5 @@
-module M = Markdown_parser.Markdown
-module P = Markdown_parser.Parser 
+module M = Markdown_parser_extractor.Markdown
+module P = Markdown_parser_extractor.Parser 
 open Base
    
 let test_link1 = "[an example][id]\n \n"
