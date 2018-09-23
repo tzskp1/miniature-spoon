@@ -21,7 +21,7 @@ let surounded_string l r =
   in 
   l <<- iter None |> map String.of_char_list
     
-let link =
+let link : atom parser =
   let ref_link =
     sequence [ surounded_string (spaces <<- charP '[') (charP ']') ;
                surounded_string (spaces <<- charP '[') (charP ']' ->> spaces) ]
@@ -33,7 +33,7 @@ let link =
     |> map (function [n; u] -> Link { name=n ; url=u } | _ -> failwith "err:url_link")
   in ref_link |-| url_link
     
-let atoms = 
+let atoms : atom list parser = 
   let terminator = eof <<- section ' ' |-| charP '\n' <<- spaces <<- section [] in
   let raw_of_any = map (fun c -> Raw (String.of_char c)) any in
   let rec collect_raws =
@@ -51,19 +51,18 @@ let atoms =
       (lazy (consP (link |-| raw_of_any) (iter a)))
   in iter None |> map collect_raws 
 
-let app_header (p : 'a list parser) =
+let app_header (p : 'a list parser) : (int * atom list * 'a list) parser =
   let header_line = repeat (charP '-') |-| repeat (charP '=') <<- section 0 in
   let pre_post_header = repeat (charP '#') |> map List.length in
   let header =
     (map (fun x y z -> x, y, z) pre_post_header |> app atoms)
-    ->> tryP 0 (pre_post_header ->> spaces ->> charP '\n')
-    |-|
+    ->> tryP 0 (pre_post_header ->> spaces ->> charP '\n') |-|
       (map (fun x y z -> x, y, z) header_line |> app atoms)
       ->> tryP [] (spaces ->> charP '\n')
   in app p header 
   
-let paragraph = 
-  let flat_paragraph : paragraph parser =
+let paragraph : paragraph parser =
+  let flat_paragraph =
     app_header atoms
     |> map (fun (x, y, z) -> FlatParagraph { level=x ; header=y ; content=z })
   in
