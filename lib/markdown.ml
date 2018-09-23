@@ -19,13 +19,13 @@ type atom =
   | Latex
   
 type paragraph =
-  | FlatParagraph of { level : int; header : atom list ; content : atom list }
   | Paragraph of { level : int; header : atom list ; content : paragraph list }
+  | PrimParagraph of atom list
 
 let surounded_string l r =
   (* work around *)
-  let rec iter a =
-    orP (r <<- section []) (lazy (consP any (iter a)))
+  let rec iter _ =
+    orP (r <<- section []) (lazy (consP any (iter None)))
   in 
   l <<- iter None |> map String.of_char_list
     
@@ -41,16 +41,18 @@ let link : atom parser =
     |> map (fun (n, u) -> Link { name=n ; url=u })
   in ref_link |-| url_link
    
-let tab = stringP "    " <<- spaces   
-  
-let line : atom list parser = 
+let line eof : atom list parser = 
   (* Assume that the end of document is a '\n'. *)
-  let terminator = (* eof <<- section ' ' |-|  *) charP '\n' <<- section [] in
+  let terminator = eof <<- section [] in
+  let tab = stringP "    " <<- spaces in
   let raw_of_any = map (fun c -> Raw (String.of_char c)) any in
   let bullet = spaces <<- (oneOf "*-+" <<- section Uo |-| (sequence [ digits ; stringP "." ] <<- section Ol)) ->> charP ' ' 
              |> map (fun t x -> [List (t,[x])]) in
-  let empty_line = spaces <<- charP '\n' in
-  let rec code _ = orP (repeat1 empty_line) (lazy (consP any (code None))) in
+  let code =
+    let empty_line = spaces <<- charP '\n' in
+    let rec iter _ = 
+      orP (repeat1 empty_line) (lazy (consP any (iter None)))
+    in tab <<- (repeat (iter None) |> map List.join |> map String.of_char_list |> map (fun x -> [Code (None,x)])) in
   let rec collect =
     function
     | [] -> []
@@ -72,34 +74,24 @@ let line : atom list parser =
     orP terminator 
       (lazy (consP (link |-| raw_of_any) (iter None)))
   in
-  tab <<- (repeat (code None) |> map List.join |> map String.of_char_list |> map (fun x -> [Code (None,x)])) |-|
-  app (iter None) bullet |-|
-  iter None |> map collect
-  
-let lines = line |> repeat |> map List.join
-
-let app_header (p : 'a list parser) : (int * atom list * 'a list) parser =
-  let header_line = repeat1 (charP '-') |-| repeat1 (charP '=') <<- section 0 in
-  let pre_post_header = repeat1 (charP '#') |> map List.length in
-  let header =
-    (map (fun x y z -> x, y, z) pre_post_header |> app line)
-    ->> tryP 0 (pre_post_header ->> spaces ->> charP '\n') |-|
-    (map (fun x y z -> y, x, z) line |> app header_line)
-    ->> tryP [] (spaces ->> charP '\n') |-|
-    (section (fun z -> 0, [], z))
-  in app p header 
-  
+  code |-| app (iter None) bullet |-| iter None |> map collect
+          
 let paragraph : paragraph parser =
-  let flat_paragraph =
-    app_header lines
-    |> map (fun (x, y, z) -> FlatParagraph { level=x ; header=y ; content=z })
-  in
-  (* work around *)
-  let rec iter a =
-    orP flat_paragraph
-      (lazy (app_header (repeat (iter a))
-             |> (map (fun (x, y, z) -> Paragraph { level=x ; header=y ; content=z }))))
-  in iter None 
+  let line_n = line (repeat (charP '#') <<- spaces <<- (charP '\n') ->> spaces) in
+  let header_line = repeat (charP '-') |-| repeat (charP '=') <<- section 0 in
+  let pre_header = (spaces <<- repeat (charP '#') ->> spaces) |> map List.length in
+  let pre = map (fun x y z -> x, y, z) pre_header in
+  let title = map (fun x y z -> y, x, z) (line (charP '\n')) in
+  let header =
+    app line_n pre |-|
+    (app header_line title) ->> tryP (spaces <<- charP '\n') in
+  let s_line_n = failP (spaces <<- (charP '#')) <<- line (charP '\n') in
+  let prim = repeat1 s_line_n |> map List.join |> map (fun x -> PrimParagraph x) in
+  let rec iter _ =
+    orP prim
+      (lazy (app (repeat (iter None)) header
+       |> map (fun (x, y, z) -> Paragraph { level=x ; header=y ; content=z })))
+  in iter None
   
 let rec string_of_atom =
   function 
@@ -108,7 +100,7 @@ let rec string_of_atom =
   | RefLink { name; id } ->
      "RefLink " ^ name ^ ":" ^ id 
   | Raw s -> s 
-  | List (_,ss) -> 
+  | List (_, ss) -> 
      List.bind ~f:(fun x -> "List: " :: List.map ~f:string_of_atom x) ss
      |> List.fold_left ~init:"" ~f:(fun a b -> a ^ b)
   | _ -> failwith "error: string_of_atom"
@@ -119,7 +111,6 @@ let rec string_of_paragraph =
      "Paragraph " ^ Int.to_string level ^ ":" ^
        List.fold_left ~init:"" ~f:(fun x y -> string_of_atom y ^ x) header ^ ":" ^
        List.fold_left ~init:"" ~f:(fun x y -> string_of_paragraph y ^ x) content ^ "\n"
-  | FlatParagraph { level ; header ; content } ->
-     "FlatParagraph " ^ Int.to_string level ^ ":" ^
-       List.fold_left ~init:"" ~f:(fun x y -> string_of_atom y ^ x) header ^ ":" ^
+  | PrimParagraph content ->
+     "PrimParagraph" ^ ":" ^
        List.fold_left ~init:"" ~f:(fun x y -> string_of_atom y ^ x) content ^ "\n"

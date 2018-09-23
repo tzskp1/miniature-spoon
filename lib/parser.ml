@@ -42,21 +42,21 @@ let orP =
            let lazy (Parser p2) = p2L in p2 x
         end
 
-let tryP d = function Parser p ->
+let tryP = function Parser p ->
              Parser
                begin fun src ->
                match p src with
-               | Second _, _ -> First d, src
+               | Second _, x :: _ -> First x, src
                | orig -> orig
                end
 
 let failP = function Parser p ->
-             Parser
-               begin fun src ->
-               match p src with
-               | First _, src' -> Second Fail, src'
-               | orig -> orig
-               end
+              Parser
+                begin fun src ->
+                match p src with
+                | First _, _ -> Second Fail, src
+                | Second _, src' -> First src', src
+                end
 
 let repeat =
   function Parser p ->
