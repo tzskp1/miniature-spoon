@@ -5,6 +5,7 @@ open Base
 let test_link1 = "[an example][id]"
 let test_atom1 = "This is [an example] [id] reference-style link."
 let test_atom2 = "This is the content."
+let test_list1 = "1. one \n 2. two \n"
 let test_paragraph1 = "## This is a header.\nThis is the content."
 let testdata = [ test_link1 ; test_atom1 ; test_paragraph1 ]
 
@@ -29,3 +30,4 @@ let do_test_atom data =
 let () = do_test_par test_paragraph1
 let () = do_test_atom test_atom2
 let () = do_test_par test_atom2
+let () = do_test_par test_list1

@@ -81,9 +81,11 @@ let any = satisfy (fun _ -> true)
 let charP c = satisfy (Char.equal c)
 let spaces = charP ' ' |> repeat
 let oneOf str = satisfy (String.contains str)
-              
+let digit = oneOf "0123456789"
 let consP p ps =
   app ps (map (fun x y -> x :: y) p)
+let repeat1 p = consP p (repeat p)
+let digits = repeat1 digit |> map String.of_char_list
            
 let sequence ps =
   let rec iter = 
@@ -104,8 +106,6 @@ let (->>) p1 p2 =
   
 let (<<-) p1 p2 =                  
   app p2 (map (fun _ y -> y) p1)
-  
-let repeat1 p = consP p (repeat p)
   
 let (|-|) p1 p2 = orP p1 (lazy p2)
 
