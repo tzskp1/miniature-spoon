@@ -1,0 +1,4 @@
+(library
+ (public_name markdown_parser)
+ (libraries core)
+ (preprocess (pps ppx_jane)))

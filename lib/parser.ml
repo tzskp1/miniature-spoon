@@ -105,6 +105,8 @@ let (->>) p1 p2 =
 let (<<-) p1 p2 =                  
   app p2 (map (fun _ y -> y) p1)
   
+let repeat1 p = consP p (repeat p)
+  
 let (|-|) p1 p2 = orP p1 (lazy p2)
 
 let run =

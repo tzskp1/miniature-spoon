@@ -1,7 +1,4 @@
 (executable
  (name main)
- (libraries core)
+ (libraries markdown_parser core)
  (preprocess (pps ppx_jane)))
- 
-;; (test (name test))
-

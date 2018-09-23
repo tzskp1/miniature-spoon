@@ -52,13 +52,14 @@ let atoms : atom list parser =
   in iter None |> map collect_raws 
 
 let app_header (p : 'a list parser) : (int * atom list * 'a list) parser =
-  let header_line = repeat (charP '-') |-| repeat (charP '=') <<- section 0 in
-  let pre_post_header = repeat (charP '#') |> map List.length in
+  let header_line = repeat1 (charP '-') |-| repeat1 (charP '=') <<- section 0 in
+  let pre_post_header = repeat1 (charP '#') |> map List.length in
   let header =
     (map (fun x y z -> x, y, z) pre_post_header |> app atoms)
     ->> tryP 0 (pre_post_header ->> spaces ->> charP '\n') |-|
-      (map (fun x y z -> x, y, z) header_line |> app atoms)
-      ->> tryP [] (spaces ->> charP '\n')
+    (map (fun x y z -> y, x, z) atoms |> app header_line)
+    ->> tryP [] (spaces ->> charP '\n') |-|
+    (section (fun z -> 0, [], z))
   in app p header 
   
 let paragraph : paragraph parser =
@@ -69,7 +70,8 @@ let paragraph : paragraph parser =
   (* work around *)
   let rec iter a =
     orP flat_paragraph
-      (lazy (app_header (repeat (iter a)) |> (map (fun (x, y, z) -> Paragraph { level=x ; header=y ; content=z }))))
+      (lazy (app_header (repeat (iter a))
+             |> (map (fun (x, y, z) -> Paragraph { level=x ; header=y ; content=z }))))
   in iter None 
   
 let string_of_atom =
