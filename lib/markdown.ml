@@ -83,11 +83,17 @@ let line eof : atom list parser =
       let num = List.length xs in List.zip_exn xs (List.range 0 num)
     in
     let label = map table_line ~f:(fun x -> TMap.add_exn TMap.empty ~key:0 ~data:(List.rev x)) ->> check_table
-    in app (repeat table_line)
-         ~f:(map label
-               ~f:(fun x xs -> List.fold_left (zip_with_num xs) ~init:x
-                                 ~f:(fun b (a,n) -> TMap.add_exn b ~key:(n + 1) ~data:(List.rev a))
-                               |> fun x -> [Table x]))
+    in app (repeat table_line) ~f:
+         begin map label ~f:
+                 begin fun x xs ->
+                 [ Table 
+                     begin List.fold_left (zip_with_num xs) ~init:x ~f:
+                             begin fun b (a,n) ->
+                             TMap.add_exn b ~key:(n + 1) ~data:(List.rev a)
+                             end
+                     end
+                 ] end
+         end
   in
   let rec collect_raws =
     function

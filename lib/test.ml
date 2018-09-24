@@ -83,17 +83,6 @@ let%test "test_code1" =
 module TMap = Markdown_parser_extractor.Markdown.TMap
 let%test "test_table1" =
   let label = TMap.add_exn TMap.empty ~key:0 ~data:["Plugins"; "Plugin"; "README"; ""] in
-  let table = TMap.add_exn label ~key:1 ~data:["Dropbox"; "[plugins/dropbox/README.md"; "";] in
+  let table = TMap.add_exn label ~key:1 ~data:["Dropbox"; "[plugins/dropbox/README.md]"; ""] in
   eq (M.parse "| Plugins | Plugin | README | \n | ------ | ------ | - | \n | Dropbox | [plugins/dropbox/README.md] | \n")
     (Base.Either.First (M.PrimParagraph [M.Table table]), "")
-                
-let do_test data =
-  let res, rest = P.run M.paragraph data in
-  begin match res with
-  | First r ->
-     M.string_of_paragraph r
-     |> ((^) "Success: ")
-  | _ -> "Fail: " ^ rest
-  end |> Stdio.print_endline
-  
-let () = do_test "| Plugins | Plugin | README | \n | ------ | ------ | - | \n | Dropbox | [plugins/dropbox/README.md] | \n"
