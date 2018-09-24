@@ -3,13 +3,13 @@ module P = Parser
 open Base
    
 let%test "normalize1" =
-  String.equal "\n" (P.normalize "\n \n")
+  String.equal "\n\n" (P.normalize "\n \n")
   
 let%test "normalize2" =
-  String.equal "\n" (P.normalize "\n   \n \n")
+  String.equal "\n\n\n" (P.normalize "\n   \n \n")
   
 let%test "normalize3" =
-  String.equal "test   \n" (P.normalize "test   \n   \n \n")
+  String.equal "test   \n\n\n" (P.normalize "test   \n   \n \n")
    
 let eq (a,b) (a',b') = Either.equal M.equal P.fail_equal a a' && String.equal b b' 
                      
@@ -69,7 +69,7 @@ let%test "test_header1" =
     (Base.Either.First
        (M.Paragraph
           {level = 3; header = [M.Raw "This is a title."];
-           content = []}), "")
+           content = [ M.PrimParagraph [] ]}), "")
 
 let%test "test_list1" =
   let xs = [ [M.Raw "one "] ; [M.Raw "two "] ] in

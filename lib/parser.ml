@@ -165,18 +165,7 @@ let loop p src =
      Some (String.of_char_list res)
     
 let normalize src =
-  let normalizer = repeat (((charP '\n' -- repeat1 (charP ' ') -- charP '\n') <<- section '\n') |-| any) in
-  let cleaner = repeat (repeat1 (charP '\n') <<- section '\n' |-| any) in
-  let res = loop (twice '\n') src
-            |> Option.bind ~f:
-                 begin 
-                   loop normalizer
-                 end
-            |> Option.bind ~f:
-                 begin
-                   loop cleaner
-                 end
-  in
-  match res with
+  let normalizer = repeat (((charP '\n' -- repeat1 (charP ' ') -- checkP (charP '\n')) <<- section '\n') |-| any) in
+  match loop normalizer src with
   | None -> failwith "error: normalize"
   | Some res -> String.rev res

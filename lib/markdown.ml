@@ -106,7 +106,7 @@ let line eof : atom list parser =
        Raw (x1 ^ x2) :: xs
        |> collect_raws
     | List (t,x) :: xs ->
-       List (t,(List.map ~f:collect_raws x)) :: collect_raws xs
+       List (t, List.map ~f:collect_raws x) :: collect_raws xs
     | x :: xs -> 
        x :: collect_raws xs
   in
@@ -127,7 +127,7 @@ let paragraph : paragraph_type parser =
   let header =
     app line_n ~f:pre |-|
     (app header_line ~f:title) ->> tryP (spaces <<- charP '\n') in
-  let s_line_n = failP (spaces <<- (charP '#')) <<- line (charP '\n') in
+  let s_line_n = failP (spaces <<- (charP '#') |-| (stringP "\n\n" <<- charP ' ')) <<- line (charP '\n') in
   let rec collect_lists =
     function
     | [] -> []
@@ -137,7 +137,15 @@ let paragraph : paragraph_type parser =
     | x :: xs -> 
        x :: collect_lists xs
   in
-  let prim = repeat1 s_line_n |> map ~f:(fun x -> PrimParagraph (List.join x |> collect_lists)) in
+  let prim = repeat1 s_line_n
+             |> map ~f:
+                  begin fun x ->
+                  x
+                  |> List.join
+                  |> collect_lists
+                  |> PrimParagraph
+                  end
+  in
   let rec iter _ =
     orP prim
       (lazy (app (repeat (iter None)) ~f:header
