@@ -1,7 +1,7 @@
 module M = Markdown
-module P = Parser 
+module P = Parser
 open Base
-
+   
 let%test "normalize1" =
   String.equal "\n" (P.normalize "\n \n")
   
@@ -97,4 +97,3 @@ let do_test data =
   end |> Stdio.print_endline
   
 let () = do_test "| Plugins | Plugin | README | \n | ------ | ------ | - | \n | Dropbox | [plugins/dropbox/README.md] | \n"
-let () = do_test "1. one \n 2. two \n"

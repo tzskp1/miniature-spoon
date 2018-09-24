@@ -180,4 +180,3 @@ let normalize src =
   match res with
   | None -> failwith "error: normalize"
   | Some res -> String.rev res
-

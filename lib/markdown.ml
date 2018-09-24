@@ -82,37 +82,31 @@ let line eof : atom list parser =
     let zip_with_num xs =
       let num = List.length xs in List.zip_exn xs (List.range 0 num)
     in
-    let label = map table_line ~f:(fun x -> TMap.add_exn TMap.empty ~key:0 ~data:x) ->> check_table
+    let label = map table_line ~f:(fun x -> TMap.add_exn TMap.empty ~key:0 ~data:(List.rev x)) ->> check_table
     in app (repeat table_line)
          ~f:(map label
                ~f:(fun x xs -> List.fold_left (zip_with_num xs) ~init:x
-                                 ~f:(fun b (a,n) -> TMap.add_exn b ~key:(n + 1) ~data:a)
+                                 ~f:(fun b (a,n) -> TMap.add_exn b ~key:(n + 1) ~data:(List.rev a))
                                |> fun x -> [Table x]))
   in
-  
-  let rec collect =
+  let rec collect_raws =
     function
     | [] -> []
     | Raw x1 :: Raw x2 :: xs ->
        Raw (x1 ^ x2) :: xs
-       |> collect
-    | List (t1,x1) :: List (t2,x2) :: xs when equal_list_type t1 t2 ->
-       List (t1, (List.append
-                    (List.map ~f:collect x1)
-                    (List.map ~f:collect x2))) :: xs
-       |> collect
+       |> collect_raws
     | List (t,x) :: xs ->
-       List (t,(List.map ~f:collect x)) :: collect xs
+       List (t,(List.map ~f:collect_raws x)) :: collect_raws xs
     | x :: xs -> 
-       x :: collect xs
+       x :: collect_raws xs
   in
-  (* character wise parsing which associate with list/link parsing *)
+  (* character wise parsing which associate with link parsing *)
   let rec iter _ : atom list parser =
   (* work around *)
     orP terminator 
       (lazy (consP (link |-| raw_of_any) (iter None)))
   in
-  table |-| code |-| app (iter None) ~f:bullet |-| iter None |> map ~f:collect
+  table |-| code |-| map ~f:collect_raws (app (iter None) ~f:bullet |-| (iter None))
           
 let paragraph : paragraph_type parser =
   let line_n = line (repeat (charP '#') <<- spaces <<- (charP '\n') ->> spaces) in
@@ -124,7 +118,16 @@ let paragraph : paragraph_type parser =
     app line_n ~f:pre |-|
     (app header_line ~f:title) ->> tryP (spaces <<- charP '\n') in
   let s_line_n = failP (spaces <<- (charP '#')) <<- line (charP '\n') in
-  let prim = repeat1 s_line_n |> map ~f:(fun x -> PrimParagraph (List.join x)) in
+  let rec collect_lists =
+    function
+    | [] -> []
+    | List (t1,x1) :: List (t2,x2) :: xs when equal_list_type t1 t2 ->
+       List (t1, (List.map ~f:collect_lists (List.append x1 x2))) :: xs
+       |> collect_lists
+    | x :: xs -> 
+       x :: collect_lists xs
+  in
+  let prim = repeat1 s_line_n |> map ~f:(fun x -> PrimParagraph (List.join x |> collect_lists)) in
   let rec iter _ =
     orP prim
       (lazy (app (repeat (iter None)) ~f:header
@@ -210,7 +213,7 @@ let rec equal_atom a1 a2 =
      String.equal name name' && String.equal id id' 
   | List (t1,a1), List (t2,a2) when equal_list_type t1 t2 ->
      let equal_atom_list = equal_list ~equal:equal_atom in
-     begin match List.fold2 a1 a2 ~init:false ~f:(fun r a1 a2 -> equal_atom_list a1 a2 && r) with
+     begin match List.fold2 a1 a2 ~init:true ~f:(fun r a1 a2 -> equal_atom_list a1 a2 && r) with
      | Ok b -> b
      | Unequal_lengths -> false
      end
