@@ -69,10 +69,14 @@ let line eof : atom list parser =
     let empty_line = spaces <<- charP '\n' in
     let rec iter _ = 
       orP (repeat1 empty_line) (lazy (consP any (iter None)))
-    in tab <<- (repeat (iter None)
-                |> map ~f:(fun x -> List.join x
-                                    |> String.of_char_list
-                                    |> fun x -> [Code (None,x)])) in
+    in tab <<- repeat (iter None)
+       |> map ~f:
+            begin fun x ->
+            List.join x
+            |> String.of_char_list
+            |> fun x -> [Code (None,x)]
+            end
+  in
   let table =
     let t_col = spaces <<- charP '|' ->> spaces in
     let table_line_col =
