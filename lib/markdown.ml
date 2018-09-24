@@ -3,7 +3,6 @@ open Core
 module TMap = Map.Make(Int)
 module RMap = Map.Make(String)
    
-(* TODO: escaping *)
 type code_type =
   | Shell
   
@@ -82,11 +81,11 @@ let line eof : atom list parser =
     let table_line_col =
       t_col <<- map ~f:String.of_char_list (until (spaces <<- charP '|' |-| charP '\n')) in
     let table_line = repeat table_line_col ->> spaces ->> charP '\n' in
-    let check_table = repeat1 (t_col <<- repeat1 (charP '-')) ->> t_col ->> charP '\n' in
+    let check_table = (*  ? ? ? -> *) repeat1 (t_col <<- repeat1 (charP '-')) ->> t_col ->> charP '\n' in
     let zip_with_num xs =
       let num = List.length xs in List.zip_exn xs (List.range 0 num)
     in
-    let label = map table_line ~f:(fun x -> TMap.add_exn TMap.empty ~key:0 ~data:(List.rev x)) ->> check_table
+    let label = map table_line ~f:(fun x -> TMap.add_exn TMap.empty ~key:0 ~data:(List.rev x)) ->> check_table 
     in app (repeat table_line) ~f:
          begin map label ~f:
                  begin fun x xs ->
@@ -114,7 +113,7 @@ let line eof : atom list parser =
   let rec iter _ : atom list parser =
   (* work around *)
     orP terminator 
-      (lazy (consP (link |-| raw_of_any) (iter None)))
+      (lazy (consP (link |-| (charP '\\' <<- raw_of_any) |-| raw_of_any) (iter None)))
   in
   table |-| code |-| map ~f:collect_raws (app (iter None) ~f:bullet |-| (iter None))
           

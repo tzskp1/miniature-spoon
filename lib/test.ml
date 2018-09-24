@@ -14,6 +14,10 @@ let%test "normalize3" =
   String.equal "test   \n\n\n" (P.normalize "test   \n   \n \n")
    
 let eq a a' = List.equal ~equal:M.equal a a'
+            
+let%test "test_escape1" =
+  eq (M.parse "\\1. omg \n")
+    [ M.PrimParagraph [ M.Raw "1. omg " ] ]
                      
 let%test "test_paragraph1" =
   eq (M.parse "## This is a header.\n This is a content.\n")
