@@ -120,14 +120,16 @@ let line eof : atom list parser =
           
 let paragraph : paragraph_type parser =
   let line_n = line (repeat (charP '#') <<- spaces <<- (charP '\n') ->> spaces) in
-  let header_line = repeat (charP '-') |-| repeat (charP '=') <<- section 0 in
-  let pre_header = (spaces <<- repeat (charP '#') ->> spaces) |> map ~f:List.length in
+  let header_line = repeat1 (charP '-') |-| repeat1 (charP '=') <<- section 0 in
+  let pre_header = (spaces <<- repeat1 (charP '#') ->> spaces) |> map ~f:List.length in
   let pre = map ~f:(fun x y z -> x, y, z) pre_header in
   let title = map ~f:(fun x y z -> y, x, z) (line (charP '\n')) in
   let header =
-    app line_n ~f:pre |-|
-    (app header_line ~f:title) ->> tryP (spaces <<- charP '\n') in
-  let s_line_n = failP (spaces <<- (charP '#') |-| (stringP "\n\n" <<- charP ' ')) <<- line (charP '\n') in
+    app line_n ~f:pre
+    |-| (app header_line ~f:title) ->> tryP (spaces <<- charP '\n')
+  in
+  let s_line_n = failP (spaces <<- (charP '#')) <<-
+                   failP (spaces <<- (charP '\n')) <<- line (charP '\n') in
   let rec collect_lists =
     function
     | [] -> []
@@ -175,7 +177,7 @@ let rec string_of_paragraph =
        List.fold_left ~init:"" ~f:(fun x y -> string_of_atom y ^ x) header ^ ":" ^
        List.fold_left ~init:"" ~f:(fun x y -> string_of_paragraph y ^ x) content ^ "\n"
   | PrimParagraph content ->
-     "PrimParagraph" ^ ":" ^
+     "PrimParagraph:" ^
        List.fold_left ~init:"" ~f:(fun x y -> string_of_atom y ^ x) content ^ "\n"
   | BlockQuote paragraph ->
      "BlockQuote:" ^ string_of_paragraph paragraph
@@ -276,4 +278,14 @@ let rec extract_paragraph =
 
  let parse src =
    let src' = normalize src in
-   run paragraph src'
+   let rec iter src acc =
+     let res, rest = run paragraph src in
+     let acc' = 
+       match res with
+       | First res -> res :: acc
+       | Second _ -> acc
+     in
+     if String.is_empty rest
+     then acc'
+     else iter rest acc'
+   in iter src' [] |> List.rev
