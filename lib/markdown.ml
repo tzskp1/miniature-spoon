@@ -128,7 +128,7 @@ let paragraph : paragraph_type parser =
     app line_n ~f:pre
     |-| (app header_line ~f:title) ->> tryP (spaces <<- charP '\n')
   in
-  let s_line_n = failP (spaces <<- (charP '#')) <<-
+  let sn_line_n = failP (spaces <<- (charP '#')) <<-
                    failP (spaces <<- (charP '\n')) <<- line (charP '\n') in
   let rec collect_lists =
     function
@@ -139,7 +139,7 @@ let paragraph : paragraph_type parser =
     | x :: xs -> 
        x :: collect_lists xs
   in
-  let prim = repeat1 s_line_n
+  let prim = repeat1 sn_line_n
              |> map ~f:
                   begin fun x ->
                   x
