@@ -1,3 +1,0 @@
-(test (name test)
- (libraries markdown_parser_extractor core)
- (preprocess (pps ppx_jane)))

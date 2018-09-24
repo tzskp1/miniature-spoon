@@ -6,6 +6,10 @@ type fail = Fail
 type eof = Eof
 type 'a parser = Parser of (ty -> ('a, fail) Either.t * ty)
                          
+let fail_equal f1 f2 =
+  match f1,f2 with
+  | Fail, Fail -> true
+    
 let section x = Parser (fun y -> Either.First x, y)
 
 let map ~f =
@@ -79,7 +83,7 @@ let chainL1 (p : 'a parser) (op : ('a -> 'a -> 'a) parser) =
             |> map ~f:(List.fold_right ~init:id ~f:compose) in
   app p ~f:op'
 
-let satisfy p =   
+let satisfy p =
   Parser
     begin function
     | x :: xs when p x -> Either.First x, xs
