@@ -34,10 +34,10 @@ type atom =
   | Table of string list TMap.t 
   | Code of code_type option * string
   
-type paragraph_ty =
-  | Paragraph of { level : int; header : atom list ; content : paragraph_ty list }
+type paragraph_type =
+  | Paragraph of { level : int; header : atom list ; content : paragraph_type list }
   | PrimParagraph of atom list
-  | BlockQuote of paragraph_ty (* TODO *)
+  | BlockQuote of paragraph_type (* TODO *)
 
 let surounded_string l r =
   (* work around *)
@@ -97,9 +97,9 @@ let line eof : atom list parser =
        Raw (x1 ^ x2) :: xs
        |> collect
     | List (t1,x1) :: List (t2,x2) :: xs when equal_list_type t1 t2 ->
-       List (t1,(List.append
-                   (List.map ~f:collect x1)
-                   (List.map ~f:collect x2))) :: xs
+       List (t1, (List.append
+                    (List.map ~f:collect x1)
+                    (List.map ~f:collect x2))) :: xs
        |> collect
     | List (t,x) :: xs ->
        List (t,(List.map ~f:collect x)) :: collect xs
@@ -114,7 +114,7 @@ let line eof : atom list parser =
   in
   table |-| code |-| app (iter None) ~f:bullet |-| iter None |> map ~f:collect
           
-let paragraph : paragraph_ty parser =
+let paragraph : paragraph_type parser =
   let line_n = line (repeat (charP '#') <<- spaces <<- (charP '\n') ->> spaces) in
   let header_line = repeat (charP '-') |-| repeat (charP '=') <<- section 0 in
   let pre_header = (spaces <<- repeat (charP '#') ->> spaces) |> map ~f:List.length in
@@ -252,3 +252,7 @@ let rec extract_paragraph =
      "<p>" ^ extract_line atoms ^ "</p>"
   | BlockQuote paragraph -> 
      "<blockquote>" ^ extract_paragraph paragraph ^ "</blockquote>"
+
+ let parse src =
+   let src' = normalize src in
+   run paragraph src'

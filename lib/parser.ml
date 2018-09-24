@@ -127,6 +127,8 @@ let (->>) p1 p2 =
 let (<<-) p1 p2 =                  
   app p2 ~f:(map ~f:(fun _ y -> y) p1)
   
+let (--) = (<<-)
+  
 let (|-|) p1 p2 = orP p1 (lazy p2)
 
 let run =
@@ -138,3 +140,44 @@ let run =
 let rec until p =
   let p' = checkP p <<- section [] in
   orP p' (lazy (consP any (until p)))
+
+let feedback =
+  function Parser p ->
+    Parser
+      begin fun src ->
+      match p src with
+      | First f, src' ->
+         First [], (List.concat [f; src'])
+      | Second f, src' ->
+         Second f, src'
+      end
+           
+let singleton p = map ~f:(fun x -> [x]) p
+                                                                          
+let twice c =
+  let cw = ((charP c) <<- section [c; c]) |-| (any |> singleton) in
+  map ~f:List.join (repeat cw)
+  
+let loop p src =
+  match run p src with
+  | Second _, _ -> None
+  | First res, _ ->
+     Some (String.of_char_list res)
+    
+let normalize src =
+  let normalizer = repeat (((charP '\n' -- repeat1 (charP ' ') -- charP '\n') <<- section '\n') |-| any) in
+  let cleaner = repeat (repeat1 (charP '\n') <<- section '\n' |-| any) in
+  let res = loop (twice '\n') src
+            |> Option.bind ~f:
+                 begin 
+                   loop normalizer
+                 end
+            |> Option.bind ~f:
+                 begin
+                   loop cleaner
+                 end
+  in
+  match res with
+  | None -> failwith "error: normalize"
+  | Some res -> String.rev res
+
