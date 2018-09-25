@@ -88,7 +88,6 @@ let link : atom parser =
     |> map ~f:(fun (n, u) -> Link { name=n ; url=u })
   in ref_link |-| url_link
    
-   
 let empty_line = spaces <<- charP '\n'
                
 let line eof : atom list parser = 
@@ -106,7 +105,7 @@ let line eof : atom list parser =
          end
   in
   let table =
-    let t_col = spaces <<- charP '|' ->> spaces in
+    let t_col = (spaces -- charP '|' -- spaces) in
     let table_line_col =
       t_col <<- map ~f:String.of_char_list (until (spaces <<- charP '|' |-| charP '\n')) in
     let table_line = repeat table_line_col ->> spaces ->> charP '\n' in
@@ -142,7 +141,7 @@ let line eof : atom list parser =
   let rec iter _ : atom list parser =
   (* work around *)
     orP terminator 
-      (lazy (consP (link |-| (charP '\\' <<- raw_of_any) |-| raw_of_any) (iter None)))
+      (lazy (consP (link |-| (charP '\\' <<- raw_of_any) (* escaping *) |-| raw_of_any) (iter None)))
   in
   table |-| code |-| map ~f:collect_raws (app (iter None) ~f:bullet |-| (iter None))
           
@@ -154,8 +153,8 @@ let paragraph : paragraph_type parser =
                     |-| ((spaces -- repeat1 (charP '=') -- empty_line) <<- section 1) in
   let title = map ~f:(fun x y z -> y, x, z) (line empty_line) in
   let header = app header_line ~f:title |-| app line_sn ~f:pre in
-  let sn_line_n = failP ((spaces -- (oneOf "#\n")) (* for header2 *)
-                         |-| (until (charP '\n') -- charP '\n' -- spaces -- (oneOf "-="))) (* for header1 *) 
+  let sn_line_n = failP ((spaces -- (oneOf "#\n")) (* for pre_header *)
+                         |-| (until (charP '\n') -- charP '\n' -- spaces -- (oneOf "-="))) (* for header_line *) 
                   <<- line empty_line
   in
   let rec collect_lists =
@@ -180,7 +179,7 @@ let paragraph : paragraph_type parser =
   let add_header p hd = app ~f:hd (repeat p) |> to_par in
   let rec iter _ =
     orP prim
-      (lazy (add_header (iter None) (header)))
+      (lazy (add_header (iter None) header))
   in iter None
                        
 let rec extract_atom =
