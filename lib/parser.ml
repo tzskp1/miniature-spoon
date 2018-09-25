@@ -169,3 +169,15 @@ let normalize src =
   match loop normalizer src with
   | None -> failwith "error: normalize"
   | Some res -> String.rev res
+
+let debugP msg =
+  function Parser p ->
+    Parser
+      begin fun src ->
+      let res, rest = p src in
+      let () = 
+        if Either.is_first res
+        then Stdio.print_endline msg 
+        else ()
+      in res, rest
+      end

@@ -37,121 +37,6 @@ type paragraph_type =
   | Paragraph of { level : int; header : atom list ; content : paragraph_type list }
   | PrimParagraph of atom list
   | BlockQuote of paragraph_type (* TODO *)
-
-let surounded_string l r =
-  (* work around *)
-  let rec iter _ =
-    orP (r <<- section []) (lazy (consP any (iter None)))
-  in 
-  l <<- iter None |> map ~f:String.of_char_list
-    
-let link : atom parser =
-  let ref_link =
-    app (surounded_string (spaces <<- charP '[') (charP ']' ->> spaces))
-      ~f:(map ~f:(fun x y -> x, y) (surounded_string (spaces <<- charP '[') (charP ']')))
-    |> map ~f:(fun (n, u) -> RefLink { name=n ; id=u })
-  in
-  let url_link =
-    app (surounded_string (spaces <<- charP '(') (charP ')' ->> spaces))
-      ~f:(map ~f:(fun x y -> x, y) (surounded_string (spaces <<- charP '[') (charP ']')))
-    |> map ~f:(fun (n, u) -> Link { name=n ; url=u })
-  in ref_link |-| url_link
-   
-let line eof : atom list parser = 
-  (* Assume that the end of document is a '\n'. *)
-  let terminator = eof <<- section [] in
-  let tab = stringP "    " <<- spaces in
-  let raw_of_any = map ~f:(fun c -> Raw (String.of_char c)) any in
-  let bullet = spaces <<- (oneOf "*-+" <<- section Uo |-| (sequence [ digits ; stringP "." ] <<- section Ol)) ->> charP ' ' 
-             |> map ~f:(fun t x -> [List (t,[x])]) in
-  let code =
-    let empty_line = spaces <<- charP '\n' in
-    let rec iter _ = 
-      orP (repeat1 empty_line) (lazy (consP any (iter None)))
-    in tab <<- repeat (iter None)
-       |> map ~f:
-            begin fun x ->
-            List.join x
-            |> String.of_char_list
-            |> fun x -> [Code (None,x)]
-            end
-  in
-  let table =
-    let t_col = spaces <<- charP '|' ->> spaces in
-    let table_line_col =
-      t_col <<- map ~f:String.of_char_list (until (spaces <<- charP '|' |-| charP '\n')) in
-    let table_line = repeat table_line_col ->> spaces ->> charP '\n' in
-    let check_table = (*  ? ? ? -> *) repeat1 (t_col <<- repeat1 (charP '-')) ->> t_col ->> charP '\n' in
-    let zip_with_num xs =
-      let num = List.length xs in List.zip_exn xs (List.range 0 num)
-    in
-    let label = map table_line ~f:(fun x -> TMap.add_exn TMap.empty ~key:0 ~data:(List.rev x)) ->> check_table 
-    in app (repeat table_line) ~f:
-         begin map label ~f:
-                 begin fun x xs ->
-                 [ Table 
-                     begin List.fold_left (zip_with_num xs) ~init:x ~f:
-                             begin fun b (a,n) ->
-                             TMap.add_exn b ~key:(n + 1) ~data:(List.rev a)
-                             end
-                     end
-                 ] end
-         end
-  in
-  let rec collect_raws =
-    function
-    | [] -> []
-    | Raw x1 :: Raw x2 :: xs ->
-       Raw (x1 ^ x2) :: xs
-       |> collect_raws
-    | List (t,x) :: xs ->
-       List (t, List.map ~f:collect_raws x) :: collect_raws xs
-    | x :: xs -> 
-       x :: collect_raws xs
-  in
-  (* character wise parsing which associate with link parsing *)
-  let rec iter _ : atom list parser =
-  (* work around *)
-    orP terminator 
-      (lazy (consP (link |-| (charP '\\' <<- raw_of_any) |-| raw_of_any) (iter None)))
-  in
-  table |-| code |-| map ~f:collect_raws (app (iter None) ~f:bullet |-| (iter None))
-          
-let paragraph : paragraph_type parser =
-  let line_n = line (repeat (charP '#') <<- spaces <<- (charP '\n') ->> spaces) in
-  let header_line = repeat1 (charP '-') |-| repeat1 (charP '=') <<- section 0 in
-  let pre_header = (spaces <<- repeat1 (charP '#') ->> spaces) |> map ~f:List.length in
-  let pre = map ~f:(fun x y z -> x, y, z) pre_header in
-  let title = map ~f:(fun x y z -> y, x, z) (line (charP '\n')) in
-  let header =
-    app line_n ~f:pre
-    |-| (app header_line ~f:title) ->> tryP (spaces <<- charP '\n')
-  in
-  let sn_line_n = failP (spaces <<- (charP '#')) <<-
-                   failP (spaces <<- (charP '\n')) <<- line (charP '\n') in
-  let rec collect_lists =
-    function
-    | [] -> []
-    | List (t1,x1) :: List (t2,x2) :: xs when equal_list_type t1 t2 ->
-       List (t1, (List.map ~f:collect_lists (List.append x1 x2))) :: xs
-       |> collect_lists
-    | x :: xs -> 
-       x :: collect_lists xs
-  in
-  let prim = repeat1 sn_line_n
-             |> map ~f:
-                  begin fun x ->
-                  x
-                  |> List.join
-                  |> collect_lists
-                  |> PrimParagraph
-                  end
-  in
-  let rec iter _ =
-    orP prim
-      (lazy (app (repeat (iter None)) ~f:header
-       |> map ~f:(fun (x, y, z) -> Paragraph { level=x ; header=y ; content=z })))
-  in iter None
   
 let rec string_of_atom =
   function 
@@ -183,6 +68,120 @@ let rec string_of_paragraph =
     
 let fold_lump piece =
   List.fold_left ~init:"" ~f:(fun b a -> b ^ (piece a))
+
+let surounded_string l r =
+  (* work around *)
+  let rec iter _ =
+    orP (r <<- section []) (lazy (consP any (iter None)))
+  in 
+  l <<- iter None |> map ~f:String.of_char_list
+    
+let link : atom parser =
+  let ref_link =
+    app (surounded_string (spaces <<- charP '[') (charP ']' ->> spaces))
+      ~f:(map ~f:(fun x y -> x, y) (surounded_string (spaces <<- charP '[') (charP ']')))
+    |> map ~f:(fun (n, u) -> RefLink { name=n ; id=u })
+  in
+  let url_link =
+    app (surounded_string (spaces <<- charP '(') (charP ')' ->> spaces))
+      ~f:(map ~f:(fun x y -> x, y) (surounded_string (spaces <<- charP '[') (charP ']')))
+    |> map ~f:(fun (n, u) -> Link { name=n ; url=u })
+  in ref_link |-| url_link
+   
+   
+let empty_line = spaces <<- charP '\n'
+               
+let line eof : atom list parser = 
+  (* Assume that the end of document is a '\n'. *)
+  let terminator = eof <<- section [] in
+  let tab = stringP "    " <<- spaces in
+  let raw_of_any = map ~f:(fun c -> Raw (String.of_char c)) any in
+  let bullet = spaces <<- (oneOf "*-+" <<- section Uo |-| (sequence [ digits ; stringP "." ] <<- section Ol)) ->> charP ' ' 
+             |> map ~f:(fun t x -> [List (t,[x])]) in
+  let code =
+    tab <<- until empty_line
+    |> map ~f:
+         begin
+           fun x -> [Code (None,String.of_char_list x)]
+         end
+  in
+  let table =
+    let t_col = spaces <<- charP '|' ->> spaces in
+    let table_line_col =
+      t_col <<- map ~f:String.of_char_list (until (spaces <<- charP '|' |-| charP '\n')) in
+    let table_line = repeat table_line_col ->> spaces ->> charP '\n' in
+    let check_table = (*  ? ? ? -> *) repeat1 (t_col <<- repeat1 (charP '-')) ->> t_col ->> charP '\n' in
+    let zip_with_num xs =
+      let num = List.length xs in List.zip_exn xs (List.range 0 num)
+    in
+    let label = map table_line ~f:(fun x -> TMap.add_exn TMap.empty ~key:0 ~data:(List.rev x)) ->> check_table 
+    in app (repeat table_line) ~f:
+         begin map label ~f:
+                 begin fun x xs ->
+                 [ Table 
+                     begin List.fold_left (zip_with_num xs) ~init:x ~f:
+                             begin fun b (a,n) ->
+                             TMap.add_exn b ~key:(n + 1) ~data:(List.rev a)
+                             end
+                     end
+                 ] end
+         end
+  in
+  let rec collect_raws =
+    function
+    | [] -> []
+    | Raw x1 :: Raw x2 :: xs ->
+       Raw (x1 ^ x2) :: xs
+       |> collect_raws
+    | List (t, x) :: xs ->
+       List (t, List.map ~f:collect_raws x) :: collect_raws xs
+    | x :: xs -> 
+       x :: collect_raws xs
+  in
+  (* character wise parsing which associate with link parsing *)
+  let rec iter _ : atom list parser =
+  (* work around *)
+    orP terminator 
+      (lazy (consP (link |-| (charP '\\' <<- raw_of_any) |-| raw_of_any) (iter None)))
+  in
+  table |-| code |-| map ~f:collect_raws (app (iter None) ~f:bullet |-| (iter None))
+          
+let paragraph : paragraph_type parser =
+  let line_sn = line (repeat (charP '#') <<- spaces <<- (charP '\n') ->> spaces) in
+  let pre_header = (spaces <<- repeat1 (charP '#') ->> spaces) |> map ~f:List.length in
+  let pre = map ~f:(fun x y z -> x, y, z) pre_header in
+  let header_line = ((spaces -- repeat1 (charP '-') -- empty_line) <<- section 2)
+                    |-| ((spaces -- repeat1 (charP '=') -- empty_line) <<- section 1) in
+  let title = map ~f:(fun x y z -> y, x, z) (line empty_line) in
+  let header = app header_line ~f:title |-| app line_sn ~f:pre in
+  let sn_line_n = failP ((spaces -- (oneOf "#\n")) (* for header2 *)
+                         |-| (until (charP '\n') -- charP '\n' -- spaces -- (oneOf "-="))) (* for header1 *) 
+                  <<- line empty_line
+  in
+  let rec collect_lists =
+    function
+    | [] -> []
+    | List (t1, x1) :: List (t2, x2) :: xs when equal_list_type t1 t2 ->
+       List (t1, (List.map ~f:collect_lists (List.append x1 x2))) :: xs
+       |> collect_lists
+    | x :: xs -> 
+       x :: collect_lists xs
+  in
+  let prim = repeat1 sn_line_n
+             |> map ~f:
+                  begin fun x ->
+                  x
+                  |> List.join
+                  |> collect_lists
+                  |> PrimParagraph
+                  end
+  in
+  let to_par = map ~f:(fun (x, y, z) -> Paragraph { level=x ; header=y ; content=z }) in
+  let add_header p hd = app ~f:hd (repeat p) |> to_par in
+  let rec iter _ =
+    orP prim
+      (lazy (add_header (iter None) (header)))
+  in iter None
                        
 let rec extract_atom =
   function
@@ -276,15 +275,9 @@ let rec extract_paragraph =
      "<blockquote>" ^ extract_paragraph paragraph ^ "</blockquote>"
 
  let parse src =
-   let src' = normalize src in
-   let rec iter src acc =
-     let res, rest = run paragraph src in
-     let acc' = 
-       match res with
-       | First res -> res :: acc
-       | Second _ -> acc
-     in
-     if String.is_empty rest
-     then acc'
-     else iter rest acc'
-   in iter src' [] |> List.rev
+   let src' = normalize (src ^ "\n") in
+   let res, _ = run (repeat (paragraph ->> empty_line)) src' in
+   match res with
+   | First res -> res |> List.rev
+   | Second _ ->
+      failwith "parse error: markdown.ml"

@@ -17,7 +17,7 @@ let eq a a' = List.equal ~equal:M.equal a a'
             
 let%test "test_escape1" =
   eq (M.parse "\\1. omg \n")
-    [ M.PrimParagraph [ M.Raw "1. omg " ] ]
+    [ M.PrimParagraph [ M.Raw "1. omg" ] ]
                      
 let%test "test_paragraph1" =
   eq (M.parse "## This is a header.\n This is a content.\n")
@@ -32,7 +32,7 @@ let%test "test_paragraph2" =
             content =
               [M.Paragraph
                  {level = 3; header = [M.Raw "This is a sub header. "];
-                  content = [M.PrimParagraph [M.Raw "in sub "]]}]} ]
+                  content = [M.PrimParagraph [M.Raw "in sub"]]}]} ]
     
 let%test "test_paragraph2'" =
   eq (M.parse "## This is a header.\n ### ### This is a sub header. ### \n nth23 \n")
@@ -41,14 +41,15 @@ let%test "test_paragraph2'" =
             content =
               [M.Paragraph
                  {level = 3; header = [M.Raw "### This is a sub header. "];
-                  content = [M.PrimParagraph [M.Raw "nth23 "]]}]} ]
+                  content = [M.PrimParagraph [M.Raw "nth23"]]}]} ]
   
 let%test "test_paragraph3" =
   eq (M.parse "### This is a sub header. ### \n nth23 \n")
        [ M.Paragraph
            {level = 3; header = [M.Raw "This is a sub header. "];
-            content = [M.PrimParagraph [M.Raw "nth23 "]]} ]
+            content = [M.PrimParagraph [M.Raw "nth23"]]} ]
   
+(* --here--  *)
 let%test "test_paragraph4" =
   eq (M.parse "paragraph1\n\nparagraph2\n")
     [ M.PrimParagraph [M.Raw "paragraph1"]; M.PrimParagraph [M.Raw "paragraph2"] ]
@@ -73,15 +74,21 @@ let%test "test_header1" =
        [ M.Paragraph
           {level = 3; header = [M.Raw "This is a title."];
            content = [] } ]
+  
+let%test "test_header1'" =
+  eq (M.parse "This is an H1 \n ========== \n \n")
+       [ M.Paragraph
+           {level = 1; header = [M.Raw "This is an H1"];
+            content = []} ]
 
 let%test "test_list1" =
-  let xs = [ [M.Raw "one "] ; [M.Raw "two "] ] in
+  let xs = [ [M.Raw "one"] ; [M.Raw "two"] ] in
   eq (M.parse  "1. one \n 2. two \n")
     [ M.PrimParagraph [M.List (M.Ol, xs)] ]
   
 let%test "test_code1" =
   eq (M.parse "    echo 'hello'\n")
-    [ M.PrimParagraph [M.Code (None, "echo 'hello'\n")] ]
+    [ M.PrimParagraph [M.Code (None, "echo 'hello'")] ]
   
 module TMap = Markdown_parser_extractor.Markdown.TMap
 let%test "test_table1" =
