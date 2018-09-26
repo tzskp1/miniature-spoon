@@ -93,22 +93,22 @@ let link : atom parser =
 let empty_line = spaces <<- charP '\n'
                
 let table =
-  let t_col = (spaces -- charP '|' -- spaces) in
+  let t_col = spaces -- charP '|' -- spaces in
   let table_line_col =
-    t_col <<- map ~f:String.of_char_list (until (spaces <<- charP '|' |-| charP '\n')) in
-  let table_line = repeat table_line_col ->> spaces ->> charP '\n' in
+    map ~f:String.of_char_list (until (spaces -- (charP '|' |-| charP '\n') -- spaces)) in
+  let table_line = t_col <<- repeat1 (table_line_col ->> t_col) ->> (spaces -- charP '\n') in
   let check_table = (*  ? ? ? -> *) repeat1 (t_col <<- repeat1 (charP '-')) ->> t_col ->> charP '\n' in
   let zip_with_num xs =
     let num = List.length xs in List.zip_exn xs (List.range 0 num)
   in
-  let label = map table_line ~f:(fun x -> TMap.add_exn TMap.empty ~key:0 ~data:(List.rev x)) ->> check_table 
+  let label = map table_line ~f:(fun x -> TMap.add_exn TMap.empty ~key:0 ~data:x) ->> check_table 
   in app (repeat table_line) ~f:
        begin map label ~f:
                begin fun x xs ->
                [ Table 
                    begin List.fold_left (zip_with_num xs) ~init:x ~f:
                            begin fun b (a,n) ->
-                           TMap.add_exn b ~key:(n + 1) ~data:(List.rev a)
+                           TMap.add_exn b ~key:(n + 1) ~data:a
                            end
                    end
                ] end
@@ -117,12 +117,12 @@ let table =
 let tab = stringP "    " <<- spaces 
         
 let code =
-  tab <<- until empty_line
+  tab <<- until (spaces -- stringP "\n\n")
   |> map ~f:
        begin
          fun x -> [Code (None,String.of_char_list x)]
        end
-               
+  
 let lines terminator : atom list parser = 
   let raw_of_any = map ~f:(fun c -> Raw (String.of_char c)) any in
   let rec collect_raws =
@@ -172,12 +172,12 @@ let paragraphs : paragraph_type list parser =
               |> fun f -> app header_line ~f:f
   in
   let paragraph = app (table |-| code |-| list |-| lines (spaces -- (stringP "\n\n" |-| checkP (stringP "#")))) ~f:
-               begin map (title |-| pre_header |-| section None) ~f:
-                       begin fun header x ->
-                       Paragraph { header=header; contents=x }
-                       end
-               end
-            ->> tryP (repeat (charP '\n'))
+                    begin map (title |-| pre_header |-| section None) ~f:
+                            begin fun header x ->
+                            Paragraph { header=header; contents=x }
+                            end
+                    end
+                  ->> tryP (repeat (charP '\n'))
   in repeat1 paragraph
      |> map ~f:List.rev
                        

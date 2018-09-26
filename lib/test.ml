@@ -95,14 +95,14 @@ let%test "test_code1" =
   
 module TMap = Markdown_parser_extractor.Markdown.TMap
 let%test "test_table1" =
-  let label = TMap.add_exn TMap.empty ~key:0 ~data:["Plugins"; "Plugin"; "README"; ""] in
-  let table = TMap.add_exn label ~key:1 ~data:["Dropbox"; "[plugins/dropbox/README.md]"; ""] in
+  let label = TMap.add_exn TMap.empty ~key:0 ~data:["Plugins"; "Plugin"; "README";] in
+  let table = TMap.add_exn label ~key:1 ~data:["Dropbox"; "[plugins/dropbox/README.md]";] in
   eq (M.parse "| Plugins | Plugin | README | \n | ------ | ------ | - | \n | Dropbox | [plugins/dropbox/README.md] | \n")
     [ M.Paragraph { header=None; contents=[M.Table table] } ]
 
 let%test "test_table1'" =
-  let () = print (M.parse "# header \n | Plugins | Plugin | README | \n | ------ | ------ | - | \n | Dropbox | [plugins/dropbox/README.md] | \n") in
-  let label = TMap.add_exn TMap.empty ~key:0 ~data:["Plugins"; "Plugin"; "README"; ""] in
-  let table = TMap.add_exn label ~key:1 ~data:["Dropbox"; "[plugins/dropbox/README.md]"; ""] in
+  let label = TMap.add_exn TMap.empty ~key:0 ~data:["Plugins"; "Plugin"; "README";] in
+  let table = TMap.add_exn label ~key:1 ~data:["Dropbox"; "[plugins/dropbox/README.md]";] in
   eq (M.parse "# header \n | Plugins | Plugin | README | \n | ------ | ------ | - | \n | Dropbox | [plugins/dropbox/README.md] | \n")
     [ M.Paragraph { header=Some(1,[ M.Raw "header" ]); contents= [ M.Table table ] } ]
+    
