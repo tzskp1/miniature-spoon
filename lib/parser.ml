@@ -104,7 +104,7 @@ let oneOf str = satisfy (String.contains str)
 let digit = oneOf "0123456789"
 let consP p ps =
   app ps ~f:(map ~f:(fun x y -> x :: y) p)
-let repeat1 p = consP p (map ~f:List.rev (repeat p))
+let repeat1 p = (consP p (map ~f:List.rev (repeat p))) |> map ~f:List.rev
 let digits = repeat1 digit |> map ~f:String.of_char_list
            
 let sequence ps =

@@ -101,14 +101,14 @@ let table =
   let zip_with_num xs =
     let num = List.length xs in List.zip_exn xs (List.range 0 num)
   in
-  let label = map table_line ~f:(fun x -> TMap.add_exn TMap.empty ~key:0 ~data:x) ->> check_table 
+  let label = map table_line ~f:(fun x -> TMap.add_exn TMap.empty ~key:0 ~data:(List.rev x)) ->> check_table 
   in app (repeat table_line) ~f:
        begin map label ~f:
                begin fun x xs ->
                [ Table 
                    begin List.fold_left (zip_with_num xs) ~init:x ~f:
                            begin fun b (a,n) ->
-                           TMap.add_exn b ~key:(n + 1) ~data:a
+                           TMap.add_exn b ~key:(n + 1) ~data:(List.rev a)
                            end
                    end
                ] end
@@ -157,7 +157,7 @@ let list =
        x :: collect_lists xs
   in
   repeat1 (app (lines (spaces <<- (charP '\n'))) ~f:bullet)
-  |> map ~f:(Fn.compose collect_lists List.join)
+  |> map ~f:(Fn.compose collect_lists (Fn.compose List.join List.rev))
           
 let paragraphs : paragraph_type list parser =
   let pre_header = spaces <<- repeat1 (charP '#') ->> spaces
@@ -179,7 +179,6 @@ let paragraphs : paragraph_type list parser =
                     end
                   ->> tryP (repeat (charP '\n'))
   in repeat1 paragraph
-     |> map ~f:List.rev
                        
 let rec extract_atom =
   function
