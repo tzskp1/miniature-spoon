@@ -164,21 +164,21 @@ let paragraphs : paragraph_type list parser =
                    |> map ~f:(fun x y -> Some (List.length x, y))
                    |> fun f -> app (lines (repeat (charP '#') -- spaces -- (charP '\n') -- spaces)) ~f:f
   in
-  let header_line = ((spaces -- repeat1 (charP '-') -- empty_line) <<- section 2)
+  let header_line = (spaces -- repeat1 (charP '-') -- empty_line) <<- section 2
                     |-| ((spaces -- repeat1 (charP '=') -- empty_line) <<- section 1)
   in
   let title = lines empty_line
               |> map ~f:(fun x y -> Some (y, x))
               |> fun f -> app header_line ~f:f
   in
-  let par = app (table |-| code |-| list |-| lines (spaces -- (stringP "\n\n" |-| checkP (stringP "#")))) ~f:
+  let paragraph = app (table |-| code |-| list |-| lines (spaces -- (stringP "\n\n" |-| checkP (stringP "#")))) ~f:
                begin map (title |-| pre_header |-| section None) ~f:
                        begin fun header x ->
                        Paragraph { header=header; contents=x }
                        end
                end
-          ->> tryP (repeat (charP '\n'))
-  in repeat1 par
+            ->> tryP (repeat (charP '\n'))
+  in repeat1 paragraph
      |> map ~f:List.rev
                        
 let rec extract_atom =
