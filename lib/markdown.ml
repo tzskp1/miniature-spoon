@@ -70,7 +70,41 @@ let rec string_of_paragraph =
     
 let fold_lump piece =
   List.fold_left ~init:"" ~f:(fun b a -> b ^ (piece a))
-
+  
+(* due to blockparagraph *)
+let normalize' src =
+  let count hd =
+    List.count ~f:(Char.equal '>') (String.to_list hd)
+  in
+  let rec collect =
+    function
+    | [ Str.Delim hd1; Str.Text r1 ] :: xs ->
+       begin match collect xs with
+       | [ Str.Delim hd2; Str.Text r2 ] :: r ->
+          if count hd1 = count hd2
+          then [ Str.Delim hd1 ; Str.Text r1 ] :: [ Str.Text r2 ] :: r
+          else [ Str.Delim hd1 ; Str.Text r1 ] :: [ Str.Delim hd2 ; Str.Text r2 ] :: r
+       | r -> [ Str.Delim hd1 ; Str.Text r1 ] :: r
+       end
+    | [] -> []
+    | x :: xs ->
+       x :: collect xs
+  in
+  let rec concat =
+    function
+    | Str.Delim c :: xs 
+    | Str.Text c :: xs ->
+       c ^ concat xs
+    | [] -> ""
+  in
+  let pat = Str.regexp "^ *>+" in
+  let ret = Str.regexp "\n" in
+  Str.split ret src 
+  |> List.map ~f:(Str.full_split pat)
+  |> collect
+  |> List.map ~f:concat
+  |> List.fold_right ~init:"" ~f:(fun a b -> a ^ "\n" ^ b)
+    
 let surounded_string l r =
   (* work around *)
   let rec iter _ =
@@ -286,7 +320,7 @@ let rec extract_paragraph =
      "<blockquote>" ^ extract_paragraph paragraph ^ "</blockquote>"
 
  let parse src =
-   let src' = normalize (src ^ "\n\n") in
+   let src' = normalize' (normalize (src ^ "\n\n")) in
    let res, _ = run paragraphs src' in
    match res with
    | First res -> res |> List.rev

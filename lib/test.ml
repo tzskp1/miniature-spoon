@@ -113,6 +113,17 @@ let%test "test_blockquote3'" =
   eq (M.parse "> line1 \n> line2")
     [ M.BlockQuote (M.Paragraph { header=None; contents=[M.Raw "line1 \n line2"]}) ]
   
+let%test "test_blockquote3''" =
+  eq (M.parse "> line1 \n\n> line2")
+    [M.BlockQuote
+       (M.Paragraph
+          {header = None;
+           contents = [M.Raw "line1"]});
+    M.BlockQuote
+       (M.Paragraph
+          {header = None;
+           contents = [M.Raw "line2"]})]
+  
 let%test "test_blockquote4" =
   eq (M.parse "> line1 \n>> line2")
     [M.BlockQuote
