@@ -53,6 +53,10 @@ let%test "test_paragraph4" =
   eq (M.parse "paragraph1\n\nparagraph2\n")
     [ M.Paragraph { header=None; contents=[M.Raw "paragraph1"] }; M.Paragraph { header=None; contents=[M.Raw "paragraph2"] } ]
   
+let%test "test_paragraph4'" =
+  eq (M.parse "paragraph1\nparagraph2\n")
+    [ M.Paragraph { header=None; contents=[M.Raw "paragraph1\nparagraph2"] } ]
+  
 let%test "test_link1" =
   eq (M.parse "[an example][id]\n \n")
        [ M.Paragraph
@@ -92,6 +96,34 @@ let%test "test_code1" =
   eq (M.parse "    echo 'hello'\n")
     [ M.Paragraph
         { header=None; contents=[M.Code (None, "echo 'hello'")]} ]
+  
+let%test "test_blockquote1" =
+  eq (M.parse "> test")
+    [ M.BlockQuote (M.Paragraph { header=None; contents=[M.Raw "test"]}) ]
+  
+let%test "test_blockquote2" =
+  eq (M.parse ">> test")
+    [ M.BlockQuote (M.BlockQuote (M.Paragraph { header=None; contents=[M.Raw "test"]})) ]
+  
+let%test "test_blockquote3" =
+  eq (M.parse "> line1 \n line2")
+    [ M.BlockQuote (M.Paragraph { header=None; contents=[M.Raw "line1 \n line2"]}) ]
+  
+let%test "test_blockquote3'" =
+  eq (M.parse "> line1 \n> line2")
+    [ M.BlockQuote (M.Paragraph { header=None; contents=[M.Raw "line1 \n line2"]}) ]
+  
+let%test "test_blockquote4" =
+  eq (M.parse "> line1 \n>> line2")
+    [M.BlockQuote
+       (M.Paragraph
+          {header = None;
+           contents = [M.Raw "line1"]});
+     M.BlockQuote
+       (M.BlockQuote
+          (M.Paragraph
+             {header = None;
+              contents = [M.Raw "line2"]}))]
   
 module TMap = Markdown_parser_extractor.Markdown.TMap
 let%test "test_table1" =

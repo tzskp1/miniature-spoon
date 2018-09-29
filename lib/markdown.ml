@@ -97,7 +97,7 @@ let table =
   let table_line_col =
     map ~f:String.of_char_list (until (spaces -- (charP '|' |-| charP '\n') -- spaces)) in
   let table_line = t_col <<- repeat1 (table_line_col ->> t_col) ->> (spaces -- charP '\n') in
-  let check_table = (*  ? ? ? -> *) repeat1 (t_col <<- repeat1 (charP '-')) ->> t_col ->> charP '\n' in
+  let check_table = repeat1 (t_col <<- repeat1 (charP '-')) ->> (t_col -- charP '\n') in
   let zip_with_num xs =
     let num = List.length xs in List.zip_exn xs (List.range 0 num)
   in
@@ -158,7 +158,7 @@ let list =
   in
   repeat1 (app (lines (spaces <<- (charP '\n'))) ~f:bullet)
   |> map ~f:(Fn.compose collect_lists (Fn.compose List.join List.rev))
-          
+  
 let paragraphs : paragraph_type list parser =
   let pre_header = spaces <<- repeat1 (charP '#') ->> spaces
                    |> map ~f:(fun x y -> Some (List.length x, y))
@@ -171,14 +171,23 @@ let paragraphs : paragraph_type list parser =
               |> map ~f:(fun x y -> Some (y, x))
               |> fun f -> app header_line ~f:f
   in
-  let paragraph = app (table |-| code |-| list |-| lines (spaces -- (stringP "\n\n" |-| checkP (stringP "#")))) ~f:
+  let paragraph = app
+                    begin
+                      table |-| code |-| list |-| lines (spaces -- (stringP "\n\n" |-| checkP (stringP "#") |-| checkP (stringP "\n>")))
+                    end ~f:
                     begin map (title |-| pre_header |-| section None) ~f:
                             begin fun header x ->
                             Paragraph { header=header; contents=x }
                             end
                     end
                   ->> tryP (repeat (charP '\n'))
-  in repeat1 paragraph
+  in
+  let rec blockquote _ =
+    let (<<-) p1 p2 = bind ~f:(fun _ -> Lazy.force p2) p1 in
+    map ~f:(fun p -> BlockQuote p)
+      ((repeat (charP '\n') -- charP '>' -- spaces) <<- lazy (blockquote None |-| paragraph))
+  in
+  repeat1 (blockquote None |-| paragraph)
                        
 let rec extract_atom =
   function
