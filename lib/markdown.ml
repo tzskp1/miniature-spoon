@@ -35,7 +35,7 @@ type atom =
   
 type paragraph_type =
   | Paragraph of { header : (int * atom list) option; contents : atom list }
-  | BlockQuote of paragraph_type (* TODO *)
+  | BlockQuote of paragraph_type
   
 let rec string_of_atom =
   function 
@@ -305,7 +305,7 @@ let rec extract_paragraph =
      begin match header with
      | Some(level, header) -> 
         if level <= 0
-        then "<p>" ^extract_line contents ^  "</p>"
+        then "<p>" ^ extract_line contents ^  "</p>"
         else if level <= 6
         then "<h" ^ Int.to_string level ^ ">" ^ "<p>" ^
                extract_line header

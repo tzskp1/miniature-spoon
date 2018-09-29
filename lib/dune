@@ -1,5 +1,5 @@
 (library
- (public_name miniature-spoon)
+ (public_name miniature_spoon)
  (libraries core str)
  (modules        (:standard))
  (inline_tests)

@@ -136,7 +136,7 @@ let%test "test_blockquote4" =
              {header = None;
               contents = [M.Raw "line2"]}))]
   
-module TMap = Markdown_parser_extractor.Markdown.TMap
+module TMap = Markdown.TMap
 let%test "test_table1" =
   let label = TMap.add_exn TMap.empty ~key:0 ~data:["Plugins"; "Plugin"; "README";] in
   let table = TMap.add_exn label ~key:1 ~data:["Dropbox"; "[plugins/dropbox/README.md]";] in
