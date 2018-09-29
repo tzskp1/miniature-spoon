@@ -1,5 +1,5 @@
 (library
- (public_name markdown_parser_extractor)
+ (public_name miniature-spoon)
  (libraries core str)
  (modules        (:standard))
  (inline_tests)
