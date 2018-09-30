@@ -11,21 +11,26 @@ let command =
           in
           fun () ->
           (* command body *)
-          let src_ch =
-            Option.map input ~f:In_channel.create
-            |> Option.value ~default:In_channel.stdin
+          let src =
+            let src_ch =
+              Option.map input ~f:In_channel.create
+              |> Option.value ~default:In_channel.stdin
+            in
+            let res = In_channel.input_all src_ch
+            in
+            let () = In_channel.close src_ch
+            in res
           in
           let dst_ch =
             Option.map output ~f:Out_channel.create
             |> Option.value ~default:Out_channel.stdout
           in
           let () = 
-            In_channel.input_all src_ch 
+            src
             |> parse
             |> extract
             |> Out_channel.output_string dst_ch
           in
-          In_channel.close src_ch;
           Out_channel.close dst_ch
     end
 
