@@ -8,7 +8,7 @@ type code_type =
 [@@deriving sexp]
   
 let equal_code_type t1 t2 =
-  match t1,t2 with
+  match t1, t2 with
   | Shell, Shell -> true
   
 type list_type =
@@ -17,7 +17,7 @@ type list_type =
 [@@deriving sexp]
 
 let equal_list_type t1 t2 =
-  match t1,t2 with
+  match t1, t2 with
   | Uo, Uo | Ol, Ol -> true
   | _, _ -> false
   
@@ -211,11 +211,11 @@ let rec extract_span =
   (* | ImageLink { name ; url ; title }  *)
   | Link { name ; url } ->
      "<a href=" ^ url ^ ">" ^ name ^ "</a>"
-  | List (Ol,spanss) ->
+  | List (Ol, spanss) ->
      let extract_line = fold_list extract_span in
      List.fold_left spanss ~init:"<ol>"
        ~f:(fun b a -> b ^ "<li>" ^ (extract_line a) ^ "</li>") ^ "</ol>"
-  | List (Uo,spanss) ->
+  | List (Uo, spanss) ->
      let extract_line = fold_list extract_span in
      List.fold_left spanss ~init:"<ul>"
        ~f:(fun b a -> b ^ "<li>" ^ (extract_line a) ^ "</li>") ^ "</ul>"
@@ -249,13 +249,13 @@ let rec equal_span a1 a2 =
      String.equal name name' && String.equal url url' 
   | RefLink { name ; id }, RefLink { name=name' ; id=id' } ->
      String.equal name name' && String.equal id id' 
-  | List (t1,a1), List (t2,a2) when equal_list_type t1 t2 ->
+  | List (t1, a1), List (t2, a2) when equal_list_type t1 t2 ->
      let equal_span_list = equal_list ~equal:equal_span in
      begin match List.fold2 a1 a2 ~init:true ~f:(fun r a1 a2 -> equal_span_list a1 a2 && r) with
      | Ok b -> b
      | Unequal_lengths -> false
      end
-  | Code (c1,s1), Code (c2,s2) when Option.equal equal_code_type c1 c2 ->
+  | Code (c1, s1), Code (c2, s2) when Option.equal equal_code_type c1 c2 ->
      String.equal s1 s2
   | _, _ -> false
 
