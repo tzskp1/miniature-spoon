@@ -214,11 +214,11 @@ let rec extract_span =
   | List (Ol, spanss) ->
      let extract_line = fold_list extract_span in
      List.fold_left spanss ~init:"<ol>"
-       ~f:(fun b a -> b ^ "<li>" ^ (extract_line a) ^ "</li>") ^ "</ol>"
+       ~f:(fun b a -> b ^ "<li>" ^ extract_line a ^ "</li>") ^ "</ol>"
   | List (Uo, spanss) ->
      let extract_line = fold_list extract_span in
      List.fold_left spanss ~init:"<ul>"
-       ~f:(fun b a -> b ^ "<li>" ^ (extract_line a) ^ "</li>") ^ "</ul>"
+       ~f:(fun b a -> b ^ "<li>" ^ extract_line a ^ "</li>") ^ "</ul>"
   | Code (_, code) ->
      "<pre><code>" ^ code ^ "</code></pre>"
   | Raw s -> s
