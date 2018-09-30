@@ -3,7 +3,7 @@ open Miniature_spoon.Markdown
    
 let command =
   Command.basic
-    ~summary:"sing a song"
+    ~summary:"convert a markdown document into a html document"
     begin
       let open Command.Let_syntax in
       (* flags *)
