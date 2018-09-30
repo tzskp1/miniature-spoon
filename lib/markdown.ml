@@ -302,10 +302,10 @@ let rec extract_paragraph =
 
 let extract src = fold_list extract_paragraph src ^ "\n"
 
- let parse src =
-   let src' = normalize' (normalize (src ^ "\n\n")) in
-   let res, _ = run paragraphs src' in
-   match res with
-   | First res -> res |> List.rev
-   | Second Fail ->
-      failwith "parse error: markdown.ml"
+let parse src =
+  let src' = normalize' (normalize (src ^ "\n\n")) in
+  let res, _ = run paragraphs src' in
+  match res with
+  | First res -> res |> List.rev
+  | Second Fail ->
+     failwith "parse error: markdown.ml"
