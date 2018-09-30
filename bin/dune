@@ -1,4 +1,4 @@
 (executable
  (name main)
- (libraries markdown_parser_extractor core)
+ (libraries miniature_spoon core)
  (preprocess (pps ppx_jane)))

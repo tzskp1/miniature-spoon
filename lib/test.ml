@@ -62,7 +62,7 @@ let%test "test_link1" =
        [ M.Paragraph
            { header=None; contents=[M.RefLink {name = "an example"; id = "id"}]} ]
   
-let%test "test_atom1" =
+let%test "test_span1" =
   eq (M.parse "This is [an example] [id] reference-style link.\n \n")
        [ M.Paragraph
            { header=None; contents= 

@@ -5,6 +5,7 @@ module RMap = Map.Make(String)
    
 type code_type =
   | Shell
+[@@deriving sexp]
   
 let equal_code_type t1 t2 =
   match t1,t2 with
@@ -13,60 +14,36 @@ let equal_code_type t1 t2 =
 type list_type =
   | Uo
   | Ol
+[@@deriving sexp]
 
 let equal_list_type t1 t2 =
   match t1,t2 with
   | Uo, Uo | Ol, Ol -> true
   | _, _ -> false
   
-type atom =
+type span =
   | AutoLink of string (* TODO *)
   | ImageLink of { name : string ; url : string ; title : string option } (* TODO *)
-  | Emphasis of atom list (* TODO *)
+  | Emphasis of span list (* TODO *)
   | HorizontalRule (* TODO *)
   | Latex (* TODO *)
   | Ref of string RMap.t
   | Link of { name : string ; url : string }
   | RefLink of { name : string ; id : string }
-  | List of list_type * atom list list
+  | List of list_type * span list list
   | Raw of string
   | Table of string list TMap.t 
   | Code of code_type option * string
+[@@deriving sexp]
   
 type paragraph_type =
-  | Paragraph of { header : (int * atom list) option; contents : atom list }
+  | Paragraph of { header : (int * span list) option; contents : span list }
   | BlockQuote of paragraph_type
+[@@deriving sexp]
   
-let rec string_of_atom =
-  function 
-  | Link { name; url } ->
-     "Link " ^ name ^ ":" ^ url 
-  | RefLink { name; id } ->
-     "RefLink " ^ name ^ ":" ^ id 
-  | Raw s -> s 
-  | List (_, ss) -> 
-     List.bind ~f:(fun x -> "List:" :: List.map ~f:string_of_atom x) ss
-     |> List.fold_left ~init:"" ~f:(^)
-  | Code (_, s) -> "Code:" ^ s
-  | Table tbl ->
-     "Table:" ^ 
-     List.fold_left (TMap.to_alist tbl) ~init:"" ~f:(fun l (k,d) -> l ^ (Int.to_string k) ^ (List.fold_left ~init:"" ~f:(^) d) ^ "\n")
-  | _ -> failwith "error: string_of_atom"
-       
-let rec string_of_paragraph =
-  function 
-  | Paragraph { header; contents } ->
-     begin match header with
-     | Some(level, header) -> 
-        "Paragraph:" ^ Int.to_string level ^ ":" ^
-          List.fold_left ~init:"" ~f:(fun x y -> string_of_atom y ^ x) header ^ ":" ^
-            List.fold_left ~init:"" ~f:(fun x y -> string_of_atom y ^ x) contents ^ "\n"
-     | None -> 
-        "Paragraph:" ^ 
-            List.fold_left ~init:"" ~f:(fun x y -> string_of_atom y ^ x) contents ^ "\n"
-     end
-  | BlockQuote paragraph ->
-     "BlockQuote:" ^ string_of_paragraph paragraph
+let string_of_span = Fn.compose string_of_sexp sexp_of_span
+                   
+let string_of_paragraph = Fn.compose string_of_sexp sexp_of_paragraph_type
     
 let fold_lump piece =
   List.fold_left ~init:"" ~f:(fun b a -> b ^ (piece a))
@@ -112,7 +89,7 @@ let surounded_string l r =
   in 
   l <<- iter None |> map ~f:String.of_char_list
     
-let link : atom parser =
+let link : span parser =
   let ref_link =
     app (surounded_string (spaces <<- charP '[') (charP ']' ->> spaces))
       ~f:(map ~f:(fun x y -> x, y) (surounded_string (spaces <<- charP '[') (charP ']')))
@@ -157,7 +134,7 @@ let code =
          fun x -> [Code (None,String.of_char_list x)]
        end
   
-let lines terminator : atom list parser = 
+let lines terminator : span list parser = 
   let raw_of_any = map ~f:(fun c -> Raw (String.of_char c)) any in
   let rec collect_raws =
     function
@@ -171,7 +148,7 @@ let lines terminator : atom list parser =
        x :: collect_raws xs
   in
   (* character wise parsing which associate with link parsing *)
-  let rec iter _ : atom list parser =
+  let rec iter _ : span list parser =
   (* work around *)
     orP (terminator <<- section [])
       (lazy (consP (link |-| (charP '\\' <<- raw_of_any) (* escaping *) |-| raw_of_any) (iter None)))
@@ -223,7 +200,7 @@ let paragraphs : paragraph_type list parser =
   in
   repeat1 (blockquote None |-| paragraph)
                        
-let rec extract_atom =
+let rec extract_span =
   function
   (* | HorizontalRule 
    * | Latex 
@@ -233,33 +210,33 @@ let rec extract_atom =
   (* | ImageLink { name ; url ; title }  *)
   | Link { name ; url } ->
      "<a href=" ^ url ^ ">" ^ name ^ "</a>"
-  | List (Ol,atomss) ->
-     let extract_line = fold_lump extract_atom in
-     List.fold_left atomss ~init:"<ol>" ~f:(fun b a -> b ^ "<li>" ^ (extract_line a) ^ "</li>") ^ "</ol>"
-  | List (Uo,atomss) ->
-     let extract_line = fold_lump extract_atom in
-     List.fold_left atomss ~init:"<ul>" ~f:(fun b a -> b ^ "<li>" ^ (extract_line a) ^ "</li>") ^ "</ul>"
+  | List (Ol,spanss) ->
+     let extract_line = fold_lump extract_span in
+     List.fold_left spanss ~init:"<ol>" ~f:(fun b a -> b ^ "<li>" ^ (extract_line a) ^ "</li>") ^ "</ol>"
+  | List (Uo,spanss) ->
+     let extract_line = fold_lump extract_span in
+     List.fold_left spanss ~init:"<ul>" ~f:(fun b a -> b ^ "<li>" ^ (extract_line a) ^ "</li>") ^ "</ul>"
   | Code (_, code) ->
      "<pre><code>" ^ code ^ "</code></pre>"
   | Raw s -> s
-  | _ -> failwith "extract_atom"
+  | _ -> failwith "extract_span"
           
-let extract_line = fold_lump extract_atom 
+let extract_line = fold_lump extract_span 
                  
 let equal_list ~equal a1 a2 = 
   List.zip a1 a2
   |> Option.map ~f:(List.fold_left ~init:true ~f:(fun r (a1,a2) -> equal a1 a2 && r))
   |> Option.value ~default:false
        
-let rec equal_atom a1 a2 =
+let rec equal_span a1 a2 =
   match a1,a2 with
   | Raw s1, Raw s2
   | AutoLink s1, AutoLink s2 -> String.equal s1 s2
   | ImageLink { name ; url ; title; }, ImageLink { name=name' ; url=url' ; title=title'; } ->
      String.equal name name' && String.equal url url' && Option.equal String.equal title title'
   | Emphasis a1, Emphasis a2 ->
-     let equal_atom_list = equal_list ~equal:equal_atom in
-     equal_atom_list a1 a2
+     let equal_span_list = equal_list ~equal:equal_span in
+     equal_span_list a1 a2
   | HorizontalRule , HorizontalRule  
   | Latex , Latex -> true
   | Ref r1, Ref r2 ->
@@ -270,8 +247,8 @@ let rec equal_atom a1 a2 =
   | RefLink { name ; id }, RefLink { name=name' ; id=id' } ->
      String.equal name name' && String.equal id id' 
   | List (t1,a1), List (t2,a2) when equal_list_type t1 t2 ->
-     let equal_atom_list = equal_list ~equal:equal_atom in
-     begin match List.fold2 a1 a2 ~init:true ~f:(fun r a1 a2 -> equal_atom_list a1 a2 && r) with
+     let equal_span_list = equal_list ~equal:equal_span in
+     begin match List.fold2 a1 a2 ~init:true ~f:(fun r a1 a2 -> equal_span_list a1 a2 && r) with
      | Ok b -> b
      | Unequal_lengths -> false
      end
@@ -284,8 +261,8 @@ let rec equal p1 p2 =
   | Paragraph { header ; contents }, Paragraph { header=header' ; contents=contents' } ->
      begin match header, header' with
      | Some(level, header), Some(level', header') ->
-        Int.equal level level' && equal_list ~equal:equal_atom header header' && equal_list ~equal:equal_atom contents contents'
-     | None, None -> equal_list ~equal:equal_atom contents contents'
+        Int.equal level level' && equal_list ~equal:equal_span header header' && equal_list ~equal:equal_span contents contents'
+     | None, None -> equal_list ~equal:equal_span contents contents'
      | _, _ -> false
      end
   | BlockQuote p1, BlockQuote p2 ->
@@ -318,6 +295,8 @@ let rec extract_paragraph =
      end
   | BlockQuote paragraph -> 
      "<blockquote>" ^ extract_paragraph paragraph ^ "</blockquote>"
+
+let extract src = fold_lump extract_paragraph src ^ "\n"
 
  let parse src =
    let src' = normalize' (normalize (src ^ "\n\n")) in
