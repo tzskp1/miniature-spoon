@@ -45,7 +45,7 @@ let string_of_span = Fn.compose string_of_sexp sexp_of_span
                    
 let string_of_paragraph = Fn.compose string_of_sexp sexp_of_paragraph_type
     
-let fold_lump piece =
+let fold_list piece =
   List.fold_left ~init:"" ~f:(fun b a -> b ^ (piece a))
   
 (* due to blockparagraph *)
@@ -211,17 +211,17 @@ let rec extract_span =
   | Link { name ; url } ->
      "<a href=" ^ url ^ ">" ^ name ^ "</a>"
   | List (Ol,spanss) ->
-     let extract_line = fold_lump extract_span in
+     let extract_line = fold_list extract_span in
      List.fold_left spanss ~init:"<ol>" ~f:(fun b a -> b ^ "<li>" ^ (extract_line a) ^ "</li>") ^ "</ol>"
   | List (Uo,spanss) ->
-     let extract_line = fold_lump extract_span in
+     let extract_line = fold_list extract_span in
      List.fold_left spanss ~init:"<ul>" ~f:(fun b a -> b ^ "<li>" ^ (extract_line a) ^ "</li>") ^ "</ul>"
   | Code (_, code) ->
      "<pre><code>" ^ code ^ "</code></pre>"
   | Raw s -> s
   | _ -> failwith "extract_span"
           
-let extract_line = fold_lump extract_span 
+let extract_line = fold_list extract_span 
                  
 let equal_list ~equal a1 a2 = 
   List.zip a1 a2
@@ -296,7 +296,7 @@ let rec extract_paragraph =
   | BlockQuote paragraph -> 
      "<blockquote>" ^ extract_paragraph paragraph ^ "</blockquote>"
 
-let extract src = fold_lump extract_paragraph src ^ "\n"
+let extract src = fold_list extract_paragraph src ^ "\n"
 
  let parse src =
    let src' = normalize' (normalize (src ^ "\n\n")) in
