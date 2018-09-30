@@ -156,8 +156,9 @@ let lines terminator : span list parser =
   map ~f:collect_raws (iter None)
                        
 let list =
-  let bullet = spaces <<- (oneOf "*-+" <<- section Uo |-| (sequence [ digits ; stringP "." ] <<- section Ol)) ->> charP ' ' 
-             |> map ~f:(fun t x -> [List (t,[x])]) in
+  let bullet =
+    spaces <<- (oneOf "*-+" <<- section Uo |-| (sequence [ digits ; stringP "." ] <<- section Ol)) ->> charP ' ' 
+    |> map ~f:(fun t x -> [List (t,[x])]) in
   let rec collect_lists =
     function
     | [] -> []
@@ -205,10 +206,10 @@ let rec extract_span =
   function
   (* | HorizontalRule 
    * | Latex 
-   * | AutoLink s  *)
-  (* | Table tbl 
-   * | RefLink { name ; id } *)
-  (* | ImageLink { name ; url ; title }  *)
+   * | AutoLink s
+   * | Table tbl 
+   * | RefLink { name ; id }
+   * | ImageLink { name ; url ; title } *)
   | Link { name ; url } ->
      "<a href=" ^ url ^ ">" ^ name ^ "</a>"
   | List (Ol, spanss) ->
