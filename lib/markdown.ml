@@ -184,7 +184,8 @@ let paragraphs : paragraph_type list parser =
   in
   let paragraph = app
                     begin
-                      table |-| code |-| list |-| lines (spaces -- (stringP "\n\n" |-| checkP (stringP "#") |-| checkP (stringP "\n>")))
+                      table |-| code |-| list
+                      |-| lines (spaces -- (stringP "\n\n" |-| checkP (stringP "#") |-| checkP (stringP "\n>")))
                     end ~f:
                     begin map (title |-| pre_header |-| section None) ~f:
                             begin fun header x ->
@@ -212,10 +213,12 @@ let rec extract_span =
      "<a href=" ^ url ^ ">" ^ name ^ "</a>"
   | List (Ol,spanss) ->
      let extract_line = fold_list extract_span in
-     List.fold_left spanss ~init:"<ol>" ~f:(fun b a -> b ^ "<li>" ^ (extract_line a) ^ "</li>") ^ "</ol>"
+     List.fold_left spanss ~init:"<ol>"
+       ~f:(fun b a -> b ^ "<li>" ^ (extract_line a) ^ "</li>") ^ "</ol>"
   | List (Uo,spanss) ->
      let extract_line = fold_list extract_span in
-     List.fold_left spanss ~init:"<ul>" ~f:(fun b a -> b ^ "<li>" ^ (extract_line a) ^ "</li>") ^ "</ul>"
+     List.fold_left spanss ~init:"<ul>"
+       ~f:(fun b a -> b ^ "<li>" ^ (extract_line a) ^ "</li>") ^ "</ul>"
   | Code (_, code) ->
      "<pre><code>" ^ code ^ "</code></pre>"
   | Raw s -> s
@@ -261,7 +264,8 @@ let rec equal p1 p2 =
   | Paragraph { header ; contents }, Paragraph { header=header' ; contents=contents' } ->
      begin match header, header' with
      | Some(level, header), Some(level', header') ->
-        Int.equal level level' && equal_list ~equal:equal_span header header' && equal_list ~equal:equal_span contents contents'
+        Int.equal level level' && equal_list ~equal:equal_span header header'
+        && equal_list ~equal:equal_span contents contents'
      | None, None -> equal_list ~equal:equal_span contents contents'
      | _, _ -> false
      end
