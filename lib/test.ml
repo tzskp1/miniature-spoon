@@ -1,6 +1,6 @@
 module M = Markdown
 module P = Parser
-open Base
+open Core
    
 let print t = List.iter t ~f:(fun x -> Fn.compose string_of_sexp M.sexp_of_paragraph_type x |> Stdio.print_endline)
        
@@ -154,7 +154,6 @@ let%test "test_table1'" =
   let table = TMap.add_exn label ~key:1 ~data:["Dropbox"; "[plugins/dropbox/README.md]";] in
   eq (M.parse "# header \n | Plugins | Plugin | README | \n | ------ | ------ | - | \n | Dropbox | [plugins/dropbox/README.md] | \n")
     [ M.Paragraph { header=Some(1,[ M.Raw "header" ]); contents= [ M.Table table ] } ]
-    
 
 let%test "test_emphasis1" =
   eq (M.parse "*test*\n")

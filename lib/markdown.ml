@@ -283,9 +283,9 @@ let rec extract_paragraph =
   | BlockQuote paragraph -> 
      "<blockquote>" ^ extract_paragraph paragraph ^ "</blockquote>"
 
-let extract src = fold_list extract_paragraph src ^ "\n"
+let extract (src : paragraph_type list) : string = fold_list extract_paragraph src ^ "\n"
 
-let parse src =
+let parse (src : string) : paragraph_type list =
   let src' = Fn.compose normalize' normalize (src ^ "\n\n") in
   let res, _ = run paragraphs src' in
   match res with
