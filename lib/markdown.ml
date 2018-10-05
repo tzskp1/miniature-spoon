@@ -20,7 +20,8 @@ let equal_list_type t1 t2 =
 type span =
   | AutoLink of string (* TODO *)
   | ImageLink of { name : string ; url : string ; title : string option } (* TODO *)
-  | Emphasis of span list (* TODO *)
+  | Emphasis of span list
+  | StrongEmphasis of span list
   | HorizontalRule (* TODO *)
   | Latex (* TODO *)
   | Ref of string RMap.t
@@ -141,6 +142,15 @@ let bullet =
   spaces <<- (oneOf "*-+" <<- section Uo |-| (sequence [ digits ; stringP "." ] <<- section Ol)) ->> charP ' ' 
   |> map ~f:(fun t x -> List (t,[x]))
   
+let emphasis line =
+  spaces <<- stringP "**" <<- (line (stringP "**" -- spaces <<- section []))
+  |> map ~f:(fun x -> StrongEmphasis x)
+  |-|
+    begin
+      spaces <<- stringP "*" <<- (line (stringP "*" -- spaces <<- section []))
+      |> map ~f:(fun x -> Emphasis x)
+    end
+  
 let rec collect =
   function
   | [] -> []
@@ -152,6 +162,10 @@ let rec collect =
      |> collect
   | List (t, x) :: xs ->
      List (t, List.map ~f:collect x) :: collect xs
+  | Emphasis x :: xs ->
+     Emphasis (collect x) :: collect xs
+  | StrongEmphasis x :: xs ->
+     StrongEmphasis (collect x) :: collect xs
   | x :: xs -> 
      x :: collect xs
   
@@ -163,7 +177,8 @@ let lines (terminator : 'a list parser) : span list parser =
       begin lazy (consP (link 
                          |-| table
                          |-| code
-                         |-| app (iter (spaces <<- (charP '\n') <<- section [])) ~f:bullet (* list *)
+                         |-| emphasis iter
+                         |-| app ~f:bullet (iter (spaces <<- (charP '\n') <<- section [])) (* list *)
                          |-| (charP '\\' <<- raw_of_any) (* escaping *)
                          |-| raw_of_any)
                     (iter terminator))
@@ -180,7 +195,10 @@ let title = lines (empty_line <<- section [])
   
 let pre_header = spaces <<- repeat1 (charP '#') ->> spaces
                  |> map ~f:(fun x y -> Some (List.length x, y))
-                 |> fun f -> app (lines (repeat (charP '#') -- spaces -- (charP '\n') -- spaces)) ~f:f
+                 |> fun f -> app ~f:f
+                               begin
+                                 lines (repeat (charP '#') -- spaces -- (charP '\n') -- spaces)
+                               end
                 
 let paragraph = app
                   begin
@@ -212,17 +230,29 @@ let rec extract_span =
    * | RefLink { name ; id }
    * | ImageLink { name ; url ; title } *)
   | Link { name ; url } ->
-     "<a href=" ^ url ^ ">" ^ name ^ "</a>"
+     "<a href=" ^ url ^ ">"
+     ^ name
+     ^ "</a>"
   | List (Ol, spanss) ->
-     let extract_line = fold_list extract_span in
      List.fold_left spanss ~init:"<ol>"
-       ~f:(fun b a -> b ^ "<li>" ^ extract_line a ^ "</li>") ^ "</ol>"
+       ~f:(fun b a -> b ^ "<li>" ^ fold_list extract_span a ^ "</li>")
+     ^ "</ol>"
   | List (Uo, spanss) ->
-     let extract_line = fold_list extract_span in
      List.fold_left spanss ~init:"<ul>"
-       ~f:(fun b a -> b ^ "<li>" ^ extract_line a ^ "</li>") ^ "</ul>"
+       ~f:(fun b a -> b ^ "<li>" ^ fold_list extract_span a ^ "</li>")
+     ^ "</ul>"
   | Code (_, code) ->
-     "<pre><code>" ^ code ^ "</code></pre>"
+     "<pre><code>" ^
+       code
+       ^ "</code></pre>"
+  | Emphasis spans ->
+     "<em>" ^
+       fold_list extract_span spans
+     ^ "</em>"
+  | StrongEmphasis spans ->
+     "<strong>" ^
+       fold_list extract_span spans
+     ^ "</strong>"
   | Raw s -> s
   | _ -> failwith "extract_span"
           

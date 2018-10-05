@@ -155,3 +155,11 @@ let%test "test_table1'" =
   eq (M.parse "# header \n | Plugins | Plugin | README | \n | ------ | ------ | - | \n | Dropbox | [plugins/dropbox/README.md] | \n")
     [ M.Paragraph { header=Some(1,[ M.Raw "header" ]); contents= [ M.Table table ] } ]
     
+
+let%test "test_emphasis1" =
+  eq (M.parse "*test*\n")
+    [ M.Paragraph { header=None; contents=[ M.Emphasis [ M.Raw "test" ] ] } ]
+    
+let%test "test_emphasis2" =
+  eq (M.parse "**test**\n")
+    [ M.Paragraph { header=None; contents=[ M.StrongEmphasis [ M.Raw "test" ] ] } ]
