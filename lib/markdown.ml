@@ -7,10 +7,6 @@ type code_type =
   | Shell
 [@@deriving sexp]
   
-let equal_code_type t1 t2 =
-  match t1, t2 with
-  | Shell, Shell -> true
-  
 type list_type =
   | Uo
   | Ol
@@ -41,10 +37,6 @@ type paragraph_type =
   | BlockQuote of paragraph_type
 [@@deriving sexp]
   
-let string_of_span = Fn.compose string_of_sexp sexp_of_span
-                   
-let string_of_paragraph = Fn.compose string_of_sexp sexp_of_paragraph_type
-    
 let fold_list piece =
   List.fold_left ~init:"" ~f:(fun b a -> b ^ (piece a))
   
@@ -116,60 +108,58 @@ let table =
   in app (repeat table_line) ~f:
        begin map label ~f:
                begin fun x xs ->
-               [ Table 
-                   begin List.fold_left (zip_with_num xs) ~init:x ~f:
-                           begin fun b (a,n) ->
-                           TMap.add_exn b ~key:(n + 1) ~data:(List.rev a)
-                           end
-                   end
-               ] end
+               Table 
+                 begin List.fold_left (zip_with_num xs) ~init:x ~f:
+                         begin fun b (a,n) ->
+                         TMap.add_exn b ~key:(n + 1) ~data:(List.rev a)
+                         end
+                 end
+               end
        end
    
 let tab = stringP "    " <<- spaces 
         
 let code =
-  tab <<- until (spaces -- stringP "\n\n")
+  tab <<- until (spaces -- checkP (stringP "\n\n"))
   |> map ~f:
        begin
-         fun x -> [Code (None,String.of_char_list x)]
+         fun x -> Code (None, String.of_char_list x)
        end
   
-let lines terminator : span list parser = 
+let lines (terminator : 'a parser) : span list parser = 
   let raw_of_any = map ~f:(fun c -> Raw (String.of_char c)) any in
-  let rec collect_raws =
+  let bullet =
+    spaces <<- (oneOf "*-+" <<- section Uo |-| (sequence [ digits ; stringP "." ] <<- section Ol)) ->> charP ' ' 
+    |> map ~f:(fun t x -> List (t,[x]))
+  in
+  let rec collect =
     function
     | [] -> []
     | Raw x1 :: Raw x2 :: xs ->
        Raw (x1 ^ x2) :: xs
-       |> collect_raws
+       |> collect
+    | List (t1, x1) :: List (t2, x2) :: xs when equal_list_type t1 t2 ->
+       List (t1, (List.map ~f:collect (List.append x1 x2))) :: xs
+       |> collect
     | List (t, x) :: xs ->
-       List (t, List.map ~f:collect_raws x) :: collect_raws xs
+       List (t, List.map ~f:collect x) :: collect xs
     | x :: xs -> 
-       x :: collect_raws xs
+       x :: collect xs
   in
-  (* character wise parsing which associate with link parsing *)
-  let rec iter _ : span list parser =
+  (* character wise parsing which associate with link/list/code/table parsing *)
+  let rec iter terminator : span list parser =
   (* work around *)
     orP (terminator <<- section [])
-      (lazy (consP (link |-| (charP '\\' <<- raw_of_any) (* escaping *) |-| raw_of_any) (iter None)))
+      begin lazy (consP (link 
+                         |-| table
+                         |-| code
+                         |-| app (iter (spaces <<- (charP '\n') <<- section [])) ~f:bullet (* list *)
+                         |-| (charP '\\' <<- raw_of_any) (* escaping *)
+                         |-| raw_of_any)
+                    (iter terminator))
+      end
   in
-  map ~f:collect_raws (iter None)
-                       
-let list =
-  let bullet =
-    spaces <<- (oneOf "*-+" <<- section Uo |-| (sequence [ digits ; stringP "." ] <<- section Ol)) ->> charP ' ' 
-    |> map ~f:(fun t x -> [List (t,[x])]) in
-  let rec collect_lists =
-    function
-    | [] -> []
-    | List (t1, x1) :: List (t2, x2) :: xs when equal_list_type t1 t2 ->
-       List (t1, (List.map ~f:collect_lists (List.append x1 x2))) :: xs
-       |> collect_lists
-    | x :: xs -> 
-       x :: collect_lists xs
-  in
-  repeat1 (app (lines (spaces <<- (charP '\n'))) ~f:bullet)
-  |> map ~f:(Fn.compose collect_lists (Fn.compose List.join List.rev))
+  map ~f:collect (iter terminator)
   
 let paragraphs : paragraph_type list parser =
   let pre_header = spaces <<- repeat1 (charP '#') ->> spaces
@@ -179,18 +169,19 @@ let paragraphs : paragraph_type list parser =
   let header_line = (spaces -- repeat1 (charP '-') -- empty_line) <<- section 2
                     |-| ((spaces -- repeat1 (charP '=') -- empty_line) <<- section 1)
   in
-  let title = lines empty_line
+  let title = lines (empty_line <<- section [])
               |> map ~f:(fun x y -> Some (y, x))
               |> fun f -> app header_line ~f:f
   in
   let paragraph = app
                     begin
-                      table |-| code |-| list
-                      |-| lines (spaces -- (stringP "\n\n" |-| checkP (stringP "#") |-| checkP (stringP "\n>")))
+                      lines (spaces -- (stringP "\n\n" |-| checkP (stringP "#") |-| checkP (stringP "\n>")) <<- section [])
                     end ~f:
-                    begin map (title |-| pre_header |-| section None) ~f:
-                            begin fun header x ->
-                            Paragraph { header=header; contents=x }
+                    begin map ~f:(fun header x -> Paragraph { header=header; contents=x })
+                            begin
+                              title
+                              |-| pre_header
+                              |-| section None
                             end
                     end
                   ->> tryP (repeat (charP '\n'))
@@ -227,53 +218,6 @@ let rec extract_span =
           
 let extract_line = fold_list extract_span 
                  
-let equal_list ~equal a1 a2 = 
-  List.zip a1 a2
-  |> Option.map ~f:(List.fold_left ~init:true ~f:(fun r (a1,a2) -> equal a1 a2 && r))
-  |> Option.value ~default:false
-       
-let rec equal_span a1 a2 =
-  match a1,a2 with
-  | Raw s1, Raw s2
-  | AutoLink s1, AutoLink s2 -> String.equal s1 s2
-  | ImageLink { name ; url ; title; }, ImageLink { name=name' ; url=url' ; title=title'; } ->
-     String.equal name name' && String.equal url url' && Option.equal String.equal title title'
-  | Emphasis a1, Emphasis a2 ->
-     let equal_span_list = equal_list ~equal:equal_span in
-     equal_span_list a1 a2
-  | HorizontalRule , HorizontalRule  
-  | Latex , Latex -> true
-  | Ref r1, Ref r2 ->
-     RMap.equal String.equal r1 r2
-  | Table t1, Table t2 -> TMap.equal (List.equal ~equal:String.equal) t1 t2
-  | Link { name; url }, Link { name=name'; url=url' } ->
-     String.equal name name' && String.equal url url' 
-  | RefLink { name ; id }, RefLink { name=name' ; id=id' } ->
-     String.equal name name' && String.equal id id' 
-  | List (t1, a1), List (t2, a2) when equal_list_type t1 t2 ->
-     let equal_span_list = equal_list ~equal:equal_span in
-     begin match List.fold2 a1 a2 ~init:true ~f:(fun r a1 a2 -> equal_span_list a1 a2 && r) with
-     | Ok b -> b
-     | Unequal_lengths -> false
-     end
-  | Code (c1, s1), Code (c2, s2) when Option.equal equal_code_type c1 c2 ->
-     String.equal s1 s2
-  | _, _ -> false
-
-let rec equal p1 p2 =
-  match p1,p2 with
-  | Paragraph { header ; contents }, Paragraph { header=header' ; contents=contents' } ->
-     begin match header, header' with
-     | Some(level, header), Some(level', header') ->
-        Int.equal level level' && equal_list ~equal:equal_span header header'
-        && equal_list ~equal:equal_span contents contents'
-     | None, None -> equal_list ~equal:equal_span contents contents'
-     | _, _ -> false
-     end
-  | BlockQuote p1, BlockQuote p2 ->
-     equal p1 p2
-  | _, _ -> false
-  
 let repeats n =
   let rec iter n =
   if n <= 0 
@@ -292,11 +236,11 @@ let rec extract_paragraph =
         then "<h" ^ Int.to_string level ^ ">" ^ "<p>" ^
                extract_line header
                ^ "</p>" ^ "</h" ^ Int.to_string level ^ ">"
+               ^ "<p>" ^ extract_line contents ^ "</p>"
         else
-          repeats level ^ "<p>"
-          ^ extract_line contents ^ "</p>"
+          repeats level ^ "<p>" ^ extract_line contents ^ "</p>"
      | None -> 
-        "<p>" ^extract_line contents ^  "</p>"
+        "<p>" ^ extract_line contents ^  "</p>"
      end
   | BlockQuote paragraph -> 
      "<blockquote>" ^ extract_paragraph paragraph ^ "</blockquote>"
@@ -304,7 +248,7 @@ let rec extract_paragraph =
 let extract src = fold_list extract_paragraph src ^ "\n"
 
 let parse src =
-  let src' = normalize' (normalize (src ^ "\n\n")) in
+  let src' = Fn.compose normalize' normalize (src ^ "\n\n") in
   let res, _ = run paragraphs src' in
   match res with
   | First res -> res |> List.rev

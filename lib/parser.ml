@@ -6,10 +6,6 @@ type fail = Fail
 type eof = Eof
 type 'a parser = Parser of (ty -> ('a, fail) Either.t * ty)
                          
-let fail_equal f1 f2 =
-  match f1,f2 with
-  | Fail, Fail -> true
-    
 let section x = Parser (fun y -> Either.First x, y)
 
 let map ~f =

@@ -2,7 +2,7 @@ module M = Markdown
 module P = Parser
 open Base
    
-let print t = List.iter t ~f:(fun x -> M.string_of_paragraph x |> Stdio.print_endline)
+let print t = List.iter t ~f:(fun x -> Fn.compose string_of_sexp M.sexp_of_paragraph_type x |> Stdio.print_endline)
        
 let%test "normalize1" =
   String.equal "\n\n" (P.normalize "\n \n")
@@ -13,7 +13,7 @@ let%test "normalize2" =
 let%test "normalize3" =
   String.equal "test   \n\n\n" (P.normalize "test   \n   \n \n")
    
-let eq a a' = List.equal ~equal:M.equal a a'
+let eq = List.equal ~equal:(fun a b -> Sexp.equal (M.sexp_of_paragraph_type a) (M.sexp_of_paragraph_type b))
             
 let%test "test_escape1" =
   eq (M.parse "\\1. omg \n")
@@ -23,6 +23,12 @@ let%test "test_paragraph1" =
   eq (M.parse "## This is a header.\n This is a contents.\n")
     [M.Paragraph
        { header=Some(2,[M.Raw "This is a header."])
+         ; contents=[M.Raw "This is a contents." ] } ]
+  
+let%test "test_paragraph1'" =
+  eq (M.parse "# This is a header.\n This is a contents.\n")
+    [M.Paragraph
+       { header=Some(1,[M.Raw "This is a header."])
          ; contents=[M.Raw "This is a contents." ] } ]
   
 let%test "test_paragraph2" =
