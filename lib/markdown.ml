@@ -125,29 +125,29 @@ let code =
        begin
          fun x -> Code (None, String.of_char_list x)
        end
+let raw_of_any = map ~f:(fun c -> Raw (String.of_char c)) any
+               
+let bullet =
+  spaces <<- (oneOf "*-+" <<- section Uo |-| (sequence [ digits ; stringP "." ] <<- section Ol)) ->> charP ' ' 
+  |> map ~f:(fun t x -> List (t,[x]))
   
-let lines (terminator : 'a parser) : span list parser = 
-  let raw_of_any = map ~f:(fun c -> Raw (String.of_char c)) any in
-  let bullet =
-    spaces <<- (oneOf "*-+" <<- section Uo |-| (sequence [ digits ; stringP "." ] <<- section Ol)) ->> charP ' ' 
-    |> map ~f:(fun t x -> List (t,[x]))
-  in
-  let rec collect =
-    function
-    | [] -> []
-    | Raw x1 :: Raw x2 :: xs ->
-       Raw (x1 ^ x2) :: xs
-       |> collect
-    | List (t1, x1) :: List (t2, x2) :: xs when equal_list_type t1 t2 ->
-       List (t1, (List.map ~f:collect (List.append x1 x2))) :: xs
-       |> collect
-    | List (t, x) :: xs ->
-       List (t, List.map ~f:collect x) :: collect xs
-    | x :: xs -> 
-       x :: collect xs
-  in
+let rec collect =
+  function
+  | [] -> []
+  | Raw x1 :: Raw x2 :: xs ->
+     Raw (x1 ^ x2) :: xs
+     |> collect
+  | List (t1, x1) :: List (t2, x2) :: xs when equal_list_type t1 t2 ->
+     List (t1, (List.map ~f:collect (List.append x1 x2))) :: xs
+     |> collect
+  | List (t, x) :: xs ->
+     List (t, List.map ~f:collect x) :: collect xs
+  | x :: xs -> 
+     x :: collect xs
+  
+let lines (terminator : 'a list parser) : span list parser = 
   (* character wise parsing which associate with link/list/code/table parsing *)
-  let rec iter terminator : span list parser =
+  let rec iter (terminator : 'a list parser) : span list parser =
   (* work around *)
     orP (terminator <<- section [])
       begin lazy (consP (link 
@@ -161,36 +161,36 @@ let lines (terminator : 'a parser) : span list parser =
   in
   map ~f:collect (iter terminator)
   
+let header_line = (spaces -- repeat1 (charP '-') -- empty_line) <<- section 2
+                  |-| ((spaces -- repeat1 (charP '=') -- empty_line) <<- section 1)
+  
+let title = lines (empty_line <<- section [])
+            |> map ~f:(fun x y -> Some (y, x))
+            |> fun f -> app header_line ~f:f
+  
+let pre_header = spaces <<- repeat1 (charP '#') ->> spaces
+                 |> map ~f:(fun x y -> Some (List.length x, y))
+                 |> fun f -> app (lines (repeat (charP '#') -- spaces -- (charP '\n') -- spaces)) ~f:f
+                
+let paragraph = app
+                  begin
+                    lines (spaces -- (stringP "\n\n" |-| checkP (stringP "#") |-| checkP (stringP "\n>")) <<- section [])
+                  end ~f:
+                  begin map ~f:(fun header x -> Paragraph { header=header; contents=x })
+                          begin
+                            title
+                            |-| pre_header
+                            |-| section None
+                          end
+                  end
+                ->> tryP (repeat (charP '\n'))
+              
+let rec blockquote _ =
+  let (<<-) p1 p2 = bind ~f:(fun _ -> Lazy.force p2) p1 in
+  map ~f:(fun p -> BlockQuote p)
+    ((repeat (charP '\n') -- charP '>' -- spaces) <<- lazy (blockquote None |-| paragraph))
+  
 let paragraphs : paragraph_type list parser =
-  let pre_header = spaces <<- repeat1 (charP '#') ->> spaces
-                   |> map ~f:(fun x y -> Some (List.length x, y))
-                   |> fun f -> app (lines (repeat (charP '#') -- spaces -- (charP '\n') -- spaces)) ~f:f
-  in
-  let header_line = (spaces -- repeat1 (charP '-') -- empty_line) <<- section 2
-                    |-| ((spaces -- repeat1 (charP '=') -- empty_line) <<- section 1)
-  in
-  let title = lines (empty_line <<- section [])
-              |> map ~f:(fun x y -> Some (y, x))
-              |> fun f -> app header_line ~f:f
-  in
-  let paragraph = app
-                    begin
-                      lines (spaces -- (stringP "\n\n" |-| checkP (stringP "#") |-| checkP (stringP "\n>")) <<- section [])
-                    end ~f:
-                    begin map ~f:(fun header x -> Paragraph { header=header; contents=x })
-                            begin
-                              title
-                              |-| pre_header
-                              |-| section None
-                            end
-                    end
-                  ->> tryP (repeat (charP '\n'))
-  in
-  let rec blockquote _ =
-    let (<<-) p1 p2 = bind ~f:(fun _ -> Lazy.force p2) p1 in
-    map ~f:(fun p -> BlockQuote p)
-      ((repeat (charP '\n') -- charP '>' -- spaces) <<- lazy (blockquote None |-| paragraph))
-  in
   repeat1 (blockquote None |-| paragraph)
                        
 let rec extract_span =
