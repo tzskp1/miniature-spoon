@@ -40,7 +40,14 @@ type paragraph_type =
 let fold_list piece =
   List.fold_left ~init:"" ~f:(fun b a -> b ^ (piece a))
   
-(* due to blockparagraph *)
+(* due to blockparagraph e.g.
+before
+> 1
+> 2
+after
+> 1
+2
+*)
 let normalize' src =
   let count hd =
     List.count ~f:(Char.equal '>') (String.to_list hd)
@@ -120,11 +127,14 @@ let table =
 let tab = stringP "    " <<- spaces 
         
 let code =
+  let subst = Str.global_substitute (Str.regexp "\n^ +") (Fn.const "\n")
+  in
   tab <<- until (spaces -- checkP (stringP "\n\n"))
   |> map ~f:
        begin
-         fun x -> Code (None, String.of_char_list x)
+         fun x -> Code (None, Fn.compose subst String.of_char_list x)
        end
+  
 let raw_of_any = map ~f:(fun c -> Raw (String.of_char c)) any
                
 let bullet =
@@ -219,11 +229,9 @@ let rec extract_span =
 let extract_line = fold_list extract_span 
                  
 let repeats n =
-  let rec iter n =
-  if n <= 0 
-  then []
-  else '#' :: iter (n - 1)
-  in iter n |> String.of_char_list
+  List.range 0 n
+  |> List.map ~f:(Fn.const '#')
+  |> String.of_char_list
   
 let rec extract_paragraph =
   function
