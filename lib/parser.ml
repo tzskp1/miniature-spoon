@@ -126,15 +126,15 @@ let stringP str =
   |> sequence
   |> map ~f:String.of_char_list
 
-let (->>) p1 p2 =                  
+let ( *>) p1 p2 =                  
   app p2 ~f:(map ~f:(fun x _ -> x) p1)
   
-let (<<-) p1 p2 =                  
+let (<*) p1 p2 =                  
   app p2 ~f:(map ~f:(fun _ y -> y) p1)
   
-let (--) = (<<-)
+let (--) = (<*)
   
-let (|-|) p1 p2 = orP p1 (lazy p2)
+let (<|>) p1 p2 = orP p1 (lazy p2)
 
 let run =
   function Parser p ->
@@ -143,7 +143,7 @@ let run =
     res, String.of_char_list rest
     
 let rec until p =
-  let p' = checkP p <<- section [] in
+  let p' = checkP p <* section [] in
   orP p' (lazy (consP any (until p)))
 
 let feedback =
@@ -160,20 +160,17 @@ let feedback =
 let singleton p = map ~f:(fun x -> [x]) p
                                                                           
 let twice c =
-  let cw = ((charP c) <<- section [c; c]) |-| (any |> singleton) in
+  let cw = ((charP c) <* section [c; c]) <|> (any |> singleton) in
   map ~f:List.join (repeat cw)
-  
-let loop p src =
-  match run p src with
-  | Second _, _ -> None
-  | First res, _ ->
-     Some (String.of_char_list res)
     
 let normalize src =
-  let normalizer = repeat (((charP '\n' -- repeat1 (charP ' ') -- checkP (charP '\n')) <<- section '\n') |-| any) in
-  match loop normalizer src with
-  | None -> failwith "error: normalize"
-  | Some res -> String.rev res
+  let normalizer = repeat (((charP '\n' -- repeat1 (charP ' ') -- checkP (charP '\n')) <* section '\n') <|> any) in
+  match run normalizer src with
+  | Second _, _-> failwith "error: normalize"
+  | First res, _ ->
+     res
+  |> List.rev
+  |> String.of_char_list
 
 let debugP msg =
   function Parser p ->

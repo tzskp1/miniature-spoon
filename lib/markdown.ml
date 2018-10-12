@@ -51,34 +51,34 @@ let normalize' src =
 let surounded_string l r =
   (* work around *)
   let rec iter _ =
-    orP (r <<- section []) (lazy (consP any (iter None)))
+    orP (r <* section []) (lazy (consP any (iter None)))
   in 
-  l <<- iter None |> map ~f:String.of_char_list
+  l <* iter None |> map ~f:String.of_char_list
     
 let link : span parser =
   let ref_link =
-    app (surounded_string (spaces <<- charP '[') (charP ']' ->> spaces))
-      ~f:(map ~f:(fun x y -> x, y) (surounded_string (spaces <<- charP '[') (charP ']')))
+    app (surounded_string (spaces <* charP '[') (charP ']' *> spaces))
+      ~f:(map ~f:(fun x y -> x, y) (surounded_string (spaces <* charP '[') (charP ']')))
     |> map ~f:(fun (n, u) -> RefLink { name=n ; id=u })
   in
   let url_link =
-    app (surounded_string (spaces <<- charP '(') (charP ')' ->> spaces))
-      ~f:(map ~f:(fun x y -> x, y) (surounded_string (spaces <<- charP '[') (charP ']')))
+    app (surounded_string (spaces <* charP '(') (charP ')' *> spaces))
+      ~f:(map ~f:(fun x y -> x, y) (surounded_string (spaces <* charP '[') (charP ']')))
     |> map ~f:(fun (n, u) -> Link { name=n ; url=u })
-  in ref_link |-| url_link
+  in ref_link <|> url_link
    
-let empty_line = spaces <<- charP '\n'
+let empty_line = spaces <* charP '\n'
                
 let table =
   let t_col = spaces -- charP '|' -- spaces in
   let table_line_col =
-    map ~f:String.of_char_list (until (spaces -- (charP '|' |-| charP '\n') -- spaces)) in
-  let table_line = t_col <<- repeat1 (table_line_col ->> t_col) ->> (spaces -- charP '\n') in
-  let check_table = repeat1 (t_col <<- repeat1 (charP '-')) ->> (t_col -- charP '\n') in
+    map ~f:String.of_char_list (until (spaces -- (charP '|' <|> charP '\n') -- spaces)) in
+  let table_line = t_col <* repeat1 (table_line_col *> t_col) *> (spaces -- charP '\n') in
+  let check_table = repeat1 (t_col <* repeat1 (charP '-')) *> (t_col -- charP '\n') in
   let zip_with_num xs =
     let num = List.length xs in List.zip_exn xs (List.range 0 num)
   in
-  let label = map table_line ~f:(fun x -> TMap.add_exn TMap.empty ~key:0 ~data:(List.rev x)) ->> check_table 
+  let label = map table_line ~f:(fun x -> TMap.add_exn TMap.empty ~key:0 ~data:(List.rev x)) *> check_table 
   in app (repeat table_line) ~f:
        begin map label ~f:
                begin fun x xs ->
@@ -91,12 +91,12 @@ let table =
                end
        end
    
-let tab = stringP "    " <<- spaces 
+let tab = stringP "    " <* spaces 
         
 let code =
   let subst = Str.global_substitute (Str.regexp "\n^ +") (Fn.const "\n")
   in
-  tab <<- until (spaces -- checkP (stringP "\n\n"))
+  tab <* until (spaces -- checkP (stringP "\n\n"))
   |> map ~f:
        begin
          fun x -> Code (None, Fn.compose subst String.of_char_list x)
@@ -105,15 +105,15 @@ let code =
 let raw_of_any = map ~f:(fun c -> Raw (String.of_char c)) any
                
 let bullet =
-  spaces <<- (oneOf "*-+" <<- section Uo |-| (sequence [ digits ; stringP "." ] <<- section Ol)) ->> charP ' ' 
+  spaces <* (oneOf "*-+" <* section Uo <|> (sequence [ digits ; stringP "." ] <* section Ol)) *> charP ' ' 
   |> map ~f:(fun t x -> List (t,[x]))
   
 let emphasis line =
-  spaces <<- stringP "**" <<- (line (stringP "**" -- spaces <<- section []))
+  spaces <* stringP "**" <* (line (stringP "**" -- spaces <* section []))
   |> map ~f:(fun x -> StrongEmphasis x)
-  |-|
+  <|>
     begin
-      spaces <<- stringP "*" <<- (line (stringP "*" -- spaces <<- section []))
+      spaces <* stringP "*" <* (line (stringP "*" -- spaces <* section []))
       |> map ~f:(fun x -> Emphasis x)
     end
   
@@ -139,27 +139,27 @@ let lines (terminator : 'a list parser) : span list parser =
   (* character wise parsing which associate with link/list/code/table parsing *)
   let rec iter (terminator : 'a list parser) : span list parser =
   (* work around *)
-    orP (terminator <<- section [])
+    orP (terminator <* section [])
       begin lazy (consP (link 
-                         |-| table
-                         |-| code
-                         |-| emphasis iter
-                         |-| app ~f:bullet (iter (spaces <<- (charP '\n') <<- section [])) (* list *)
-                         |-| (charP '\\' <<- raw_of_any) (* escaping *)
-                         |-| raw_of_any)
+                         <|> table
+                         <|> code
+                         <|> emphasis iter
+                         <|> app ~f:bullet (iter (spaces <* (charP '\n') <* section [])) (* list *)
+                         <|> (charP '\\' <* raw_of_any) (* escaping *)
+                         <|> raw_of_any)
                     (iter terminator))
       end
   in
   map ~f:collect (iter terminator)
   
-let header_line = (spaces -- repeat1 (charP '-') -- empty_line) <<- section 2
-                  |-| ((spaces -- repeat1 (charP '=') -- empty_line) <<- section 1)
+let header_line = (spaces -- repeat1 (charP '-') -- empty_line) <* section 2
+                  <|> ((spaces -- repeat1 (charP '=') -- empty_line) <* section 1)
   
-let title = lines (empty_line <<- section [])
+let title = lines (empty_line <* section [])
             |> map ~f:(fun x y -> Some (y, x))
             |> fun f -> app header_line ~f:f
   
-let pre_header = spaces <<- repeat1 (charP '#') ->> spaces
+let pre_header = spaces <* repeat1 (charP '#') *> spaces
                  |> map ~f:(fun x y -> Some (List.length x, y))
                  |> fun f -> app ~f:f
                                begin
@@ -168,24 +168,24 @@ let pre_header = spaces <<- repeat1 (charP '#') ->> spaces
                 
 let paragraph = app
                   begin
-                    lines (spaces -- (stringP "\n\n" |-| checkP (stringP "#") |-| checkP (stringP "\n>")) <<- section [])
+                    lines (spaces -- (stringP "\n\n" <|> checkP (stringP "#") <|> checkP (stringP "\n>")) <* section [])
                   end ~f:
                   begin map ~f:(fun header x -> Paragraph { header=header; contents=x })
                           begin
                             title
-                            |-| pre_header
-                            |-| section None
+                            <|> pre_header
+                            <|> section None
                           end
                   end
-                ->> tryP (repeat (charP '\n'))
+                *> tryP (repeat (charP '\n'))
               
 let rec blockquote _ =
-  let (<<-) p1 p2 = bind ~f:(fun _ -> Lazy.force p2) p1 in
+  let (<*) p1 p2 = bind ~f:(fun _ -> Lazy.force p2) p1 in
   map ~f:(fun p -> BlockQuote p)
-    ((repeat (charP '\n') -- charP '>' -- spaces) <<- lazy (blockquote None |-| paragraph))
+    ((repeat (charP '\n') -- charP '>' -- spaces) <* lazy (blockquote None <|> paragraph))
   
 let paragraphs : paragraph_type list parser =
-  repeat1 (blockquote None |-| paragraph)
+  repeat1 (blockquote None <|> paragraph)
                        
 let rec extract_span =
   function
